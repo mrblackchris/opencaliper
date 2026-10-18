@@ -1,0 +1,38 @@
+/**
+@mainpage OpenCaliper developer reference
+
+OpenCaliper reads recorded signals into a shared Python data model, performs
+numerical analysis, and presents time and frequency plots in a Qt desktop GUI.
+This reference is generated from the checked-in Python source and docstrings.
+
+@section start_here Start here
+
+- @ref architecture : component drawings, ownership and loading sequence.
+- opencaliper.core.Signal and opencaliper.core.Recording : shared data model.
+- opencaliper.core.load() and opencaliper.core.export() : format entry points.
+- opencaliper.analysis : FFT, statistics and cursor interpolation.
+- opencaliper.gui.Window : desktop interaction controller.
+- scripts.launch.main() : first-run setup and launch.
+
+Use the Packages, Classes and Files navigation to inspect definitions and their
+source. Class diagrams show relationships Doxygen can infer. Python is dynamic,
+so inferred relationships are incomplete; the curated architecture drawings
+explain runtime ownership explicitly.
+
+@section guides Reading alongside the reference
+
+The repository's `docs/README.md` is the documentation index. Read
+`docs/USER_GUIDE.md` for application use, `docs/ARCHITECTURE.md` for the extended
+architecture explanation, `docs/DEVELOPMENT.md` for an executable API walkthrough
+and test map, and `docs/MAT_FORMAT.md` for the acquisition file convention.
+The source checkout also contains `examples/example.py` and its synthetic MAT
+file. Private `measFiles/`, environments, tests and generated exports are not
+inputs to this documentation build.
+
+@section maintenance Maintaining this reference
+
+Document parameters, units, return values, constraints and side effects next
+to the function they describe. Build with `doxygen Doxyfile` from the project
+root and inspect `docs-api/html/index.html`. See `docs/DOXYGEN.md` for setup
+and writing conventions. Documentation generation imports no application code.
+*/

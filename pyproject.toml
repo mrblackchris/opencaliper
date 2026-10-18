@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "opencaliper"
+version = "0.1.0"
+description = "Open-source data viewer and analyzer"
+readme = "README.md"
+license = "GPL-3.0-only"
+license-files = ["LICENSE", "NOTICE", "THIRD_PARTY_NOTICES.md"]
+keywords = ["waveform", "measurement", "data-viewer", "fft", "signal-analysis"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: Visualization",
+]
+requires-python = ">=3.10"
+dependencies = ["numpy>=2.0,<2.3", "scipy>=1.14,<1.17", "hdf5storage", "asammdf==8.7.2", "spicelib>=1.4", "PySide6-Essentials>=6.6", "pyqtgraph>=0.13"]
+
+[project.optional-dependencies]
+dev = ["build>=1.2"]
+
+[project.scripts]
+opencaliper = "opencaliper.cli:main"
+mat2raw = "opencaliper.cli:mat2raw"
+
+[tool.setuptools]
+packages = ["opencaliper"]

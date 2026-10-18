@@ -1,0 +1,84 @@
+/**
+@page architecture Architecture drawings
+
+@section components Component dependencies
+
+Arrows mean "calls or imports". The data and numerical layers do not call Qt.
+The GUI and CLI share the same import, export and analysis functions.
+
+@dot
+ digraph components {
+   graph [rankdir=TB, bgcolor="transparent"];
+   node [shape=box, style="rounded,filled", fillcolor="#eef4fb", fontname="sans-serif"];
+   edge [fontname="sans-serif"];
+   launch [label="BAT / SH launcher\nscripts/launch.py"];
+   cli [label="cli.py\ncommand dispatch"];
+   gui [label="gui.py\nQt desktop workspace"];
+   core [label="core.py\nSignal / Recording\nload / export"];
+   analysis [label="analysis.py\nFFT / statistics / cursors"];
+   acquisition [label="acquisition.py\nMAT scaling / waveform writers"];
+   raw [label="raw.py\nRAW writer"];
+   libraries [label="SciPy / hdf5storage\nasammdf / spicelib"];
+   qt [label="PySide6 / pyqtgraph"];
+   launch -> cli; cli -> gui; cli -> core; cli -> analysis;
+   gui -> core; gui -> analysis; gui -> qt;
+   core -> acquisition; core -> raw; core -> libraries;
+   acquisition -> libraries;
+ }
+@enddot
+
+@section ownership Runtime ownership
+
+The following drawing describes logical state ownership, rather than a complete
+Python inheritance diagram. Signal IDs are session-local integers; plots use
+them to reference loaded sources. The explorer is shared by all analysis tabs.
+
+@dot
+ digraph ownership {
+   graph [rankdir=LR, bgcolor="transparent"];
+   node [shape=box, style="rounded,filled", fillcolor="#eef8ee", fontname="sans-serif"];
+   window [label="Window\nsource and file registries"];
+   explorer [label="MeasurementExplorer\nfile / channel tree"];
+   page [label="AnalysisPage (one per tab)\nkind / cursors / FFT interval"];
+   plot [label="Plot (one per subplot)\ncurves / axes / colors\ndisplayed signals"];
+   signal [label="Signal\ntime / values / unit"];
+   worker [label="Loader\none file import"];
+   window -> explorer [label="owns"];
+   window -> page [label="tabs"];
+   page -> plot [label="plots"];
+   window -> signal [label="source ID registry"];
+   plot -> signal [label="time: reference\nFFT: transformed result", style=dashed];
+   window -> worker [label="retains until finished"];
+ }
+@enddot
+
+@section loading Loading and displaying a channel
+
+@dot
+ digraph loading {
+   graph [rankdir=TB, bgcolor="transparent"];
+   node [shape=box, fontname="sans-serif"];
+   open [label="Open file / drop local URL"];
+   worker [label="Window.open_path -> Loader.run\nworker thread calls core.load"];
+   model [label="Recording with physical Signal arrays"];
+   registry [label="Qt loaded signal -> Window.loaded\nGUI thread registers IDs and tree items"];
+   drag [label="Drag channel ID using internal MIME payload"];
+   add [label="Window.add_signal\nresolve source; calculate FFT if needed"];
+   display [label="Plot curve and signal sidebar"];
+   open -> worker -> model -> registry -> drag -> add -> display;
+ }
+@enddot
+
+@section boundaries Important boundaries
+
+Import runs in worker threads. FFT and export currently run on the GUI thread.
+Recordings are fully loaded into memory. Plot downsampling is for display;
+analysis uses full source arrays. FFT pages store their source time interval
+separately from frequency cursor positions. In an FFT display, Signal.time
+holds frequency in Hz, an implementation convention documented by
+opencaliper.gui.Window.transformed_signal().
+
+GUI "Export all" exports loaded source signals rather than displayed spectra.
+Session layouts are not persisted. Read `docs/ARCHITECTURE.md` for the complete
+behavior and known limitations.
+*/

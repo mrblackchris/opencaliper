@@ -1,0 +1,28 @@
+name: Doxygen documentation
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  documentation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install documentation tools
+        run: sudo apt-get update && sudo apt-get install -y doxygen graphviz
+      - name: Generate API reference and drawings
+        run: |
+          doxygen Doxyfile
+          test -f docs-api/html/index.html
+          test ! -s docs-api/warnings.log
+      - name: Upload browsable HTML reference
+        uses: actions/upload-artifact@v4
+        with:
+          name: opencaliper-api-reference
+          path: docs-api/html/
+          if-no-files-found: error

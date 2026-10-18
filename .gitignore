@@ -1,0 +1,39 @@
+.venv/
+__pycache__/
+*.egg-info/
+.pytest_cache/
+build/
+dist/
+
+# Local recordings and generated exports. Publish synthetic generators instead.
+*.[mM][aA][tT]
+*.[bB][iI][nN]
+*.[mM][fF]4
+*.[mM][dD][fF]
+*.[wW][vV][fF]
+*.[hH][dD][rR]
+*.[rR][aA][wW]
+*.[wW][dD][fF]
+*.[pP][sS][dD][aA][tT][aA]
+*.h5
+*.hdf5
+*.csv
+*.log
+
+# Machine configuration and secrets
+.env
+.env.*
+*.pem
+*.key
+.vscode/
+.idea/
+
+
+# Private recordings and local scripts
+/measFiles/
+
+# Public synthetic example
+!/examples/example.mat
+
+# Generated Doxygen HTML and diagrams
+/docs-api/

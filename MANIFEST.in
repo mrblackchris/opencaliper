@@ -1,0 +1,22 @@
+include Doxyfile
+include README.md LICENSE NOTICE THIRD_PARTY_NOTICES.md
+include CONTRIBUTING.md SECURITY.md CHANGELOG.md
+include start_opencaliper.bat start_opencaliper.sh
+recursive-include scripts *.py
+recursive-include examples *.py
+recursive-include docs *.md *.png *.dox
+recursive-include tests *.py
+prune measFiles
+prune .venv
+prune docs-api
+prune build
+prune dist
+prune .git
+prune __pycache__
+global-exclude *.py[cod]
+global-exclude *.mat *.MAT *.bin *.BIN *.mf4 *.MF4 *.mdf *.MDF
+global-exclude *.wvf *.WVF *.hdr *.HDR *.raw *.RAW *.wdf *.WDF
+global-exclude *.dll *.so *.dylib *.exe *.pem *.key .env .env.*
+
+# Only this generated synthetic MAT file is public.
+include examples/example.mat

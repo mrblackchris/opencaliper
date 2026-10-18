@@ -1,0 +1,37 @@
+name: Tests and package build
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.10', '3.12']
+    env:
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - name: Install Qt runtime libraries
+        run: sudo apt-get update && sudo apt-get install -y libegl1 libopengl0
+      - name: Install project
+        run: python -m pip install -e '.[dev]'
+      - name: Run application tests
+        run: python -m unittest discover -s tests -v
+      - name: Check documented example and CLI
+        run: |
+          python examples/example.py --output demo.mat
+          opencaliper info demo.mat
+          opencaliper stats demo.mat --signal 0
+      - name: Build wheel and source archive
+        run: python -m build

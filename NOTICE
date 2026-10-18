@@ -1,0 +1,11 @@
+OpenCaliper
+Open-source data viewer and analyzer
+
+Copyright (C) 2026 OpenCaliper contributors
+
+OpenCaliper is distributed under the GNU General Public License, version 3
+only (SPDX: GPL-3.0-only). The complete license is provided in LICENSE.
+
+Dependencies retain their own copyrights and licenses. See
+THIRD_PARTY_NOTICES.md. This notice does not replace those licenses or claim
+ownership of third-party code, trademarks, measurement data, or file formats.
