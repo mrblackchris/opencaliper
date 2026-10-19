@@ -11,6 +11,8 @@ Install Python 3.10 or newer (Python 3.12 is tested), download and extract the c
 
 The first run creates `.venv` inside the project and downloads dependencies. Wait for installation to finish; the GUI opens afterward. Keep the project in a writable folder. Subsequent runs reuse the environment. If setup fails, read the terminal message; the Windows launcher pauses to keep it visible. More setup options are in the [README](../README.md#easy-start-on-windows-and-linux).
 
+To use an already installed Python environment instead, install with `python -m pip install -e .` from the project folder (use `python3` on Linux if needed), then run `start_opencaliper_no_venv.bat` on Windows or `sh start_opencaliper_no_venv.sh` on Linux. These launchers use your current Python and do not create `.venv` or install dependencies. See the [existing-environment instructions](../README.md#use-an-already-installed-python-environment-without-venv) for interpreter selection and setup details.
+
 To open the example immediately on Linux, run:
 
 ```bash

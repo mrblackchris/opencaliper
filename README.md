@@ -47,7 +47,43 @@ start_opencaliper.bat "C:\Measurements\capture.mat"
 ./start_opencaliper.sh examples/example.mat
 ```
 
-### Manual installation and command line
+### Use an already installed Python environment (without `.venv`)
+
+You can use either approach: the launchers above manage an isolated project `.venv`, while the `start_opencaliper_no_venv` launchers use your current Python environment. Both require Python 3.10 or newer. Installing into an existing environment may update shared dependencies to satisfy the versions in `pyproject.toml`; use the `.venv` option if you want to keep those dependencies isolated.
+
+From a terminal in the project folder, install OpenCaliper and its dependencies once into your chosen Python environment:
+
+**Linux:**
+
+```bash
+python3 -m pip install -e .
+./start_opencaliper_no_venv.sh
+```
+
+**Windows Command Prompt:**
+
+```bat
+python -m pip install -e .
+start_opencaliper_no_venv.bat
+```
+
+If Windows only provides the `py` launcher, use `py -3 -m pip install -e .` instead. If Linux only provides `python`, use `python -m pip install -e .`. The new launchers prefer `python` on PATH, falling back to `python3` on Linux or `py -3` on Windows. Make sure the interpreter used for installation is the same one selected by the launcher. You can always launch explicitly with `python3 -m opencaliper gui` or `py -3 -m opencaliper gui` to choose that interpreter.
+
+These launchers do not create or activate `.venv`, or install packages. If an environment is already activated, they use its Python; deactivate the project's `.venv` first if you want to use your regular Python installation. Some Linux distributions block pip installation into the system-managed Python; in that case use the `.venv` option or another existing environment that permits package installation.
+
+The editable installation (`-e .`) uses this source folder, so keep it in place. Repeat the install command if project dependencies change. If executable permission was lost, use `sh start_opencaliper_no_venv.sh`. File arguments and Windows drag-and-drop work with these launchers too:
+
+```bash
+./start_opencaliper_no_venv.sh examples/example.mat
+```
+
+```bat
+start_opencaliper_no_venv.bat "C:\Measurements\capture.mat"
+```
+
+After installation, `python -m opencaliper gui` and the command-line commands below also work in that environment.
+
+### Manual installation in `.venv` and command line
 
 For developers or command-line use on Linux:
 

@@ -2,6 +2,7 @@ include Doxyfile
 include README.md LICENSE NOTICE THIRD_PARTY_NOTICES.md
 include CONTRIBUTING.md SECURITY.md CHANGELOG.md
 include start_opencaliper.bat start_opencaliper.sh
+include start_opencaliper_no_venv.bat start_opencaliper_no_venv.sh
 recursive-include scripts *.py
 recursive-include examples *.py
 recursive-include docs *.md *.png *.dox
