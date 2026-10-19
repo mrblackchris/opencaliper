@@ -13,6 +13,8 @@ from PySide6 import QtCore, QtGui, QtWidgets as Q
 import pyqtgraph as pg
 from .core import load, export, Recording, Signal
 from .analysis import statistics, fft, cursor_values
+from .workspace import WorkspaceMixin, reversible
+from .tools import ToolsMixin
 
 
 class Loader(QtCore.QThread):
@@ -154,6 +156,7 @@ class Plot(pg.PlotWidget):
         self.setLabel('bottom', 'Time', units='s')
         self.addLegend(); self.curves = {}
         self.display_signals = {}
+        self.fit_bounds = {}
         self.signal_colors = {}
         self.signal_axes = {}
         self.extra_axes = {}
@@ -316,7 +319,7 @@ class AnalysisPage(Q.QSplitter):
             self.setSizes([45, 650, 110])
 
 
-class Window(Q.QMainWindow):
+class Window(WorkspaceMixin, ToolsMixin, Q.QMainWindow):
     """Desktop controller owning shared sources and independent analysis pages.
     
     Source signals and explorer items are indexed by session-local integer IDs.
@@ -370,6 +373,8 @@ class Window(Q.QMainWindow):
         split.addWidget(self.tabs); split.setSizes([300, 1150])
         split.setCollapsible(0, False)
         self.add_analysis()
+        self.init_tools()
+        self.init_history()
         self.statusBar().showMessage('Open a measurement, then drag signals into a plot. Double-click adds to the first plot.')
 
     @property
@@ -435,7 +440,7 @@ class Window(Q.QMainWindow):
         for plot in self.plots: plot.getViewBox().scaleBy((1, factor))
 
     def open_files(self):
-        paths, _ = Q.QFileDialog.getOpenFileNames(self, 'Open measurements', '', 'Measurements (*.mat *.mf4 *.MF4 *.mdf *.MDF *.bin *.wvf *.WVF *.raw);;All files (*)')
+        paths, _ = Q.QFileDialog.getOpenFileNames(self, 'Open measurements', '', 'Measurements (*.mat *.mf4 *.MF4 *.mdf *.MDF *.bin *.wvf *.WVF *.raw *.npy);;All files (*)')
         for path in paths: self.open_path(path)
 
     def open_path(self, path):
@@ -492,6 +497,7 @@ class Window(Q.QMainWindow):
         page = self.workspace
         plot = Plot(); plot.workspace = page
         plot.getViewBox().color_menu = lambda pos: self.plot_color_menu(plot, pos)
+        plot.getViewBox().sigYRangeChanged.connect(lambda view, bounds: self.update_annotation_labels(plot, bounds))
         if page.kind == 'fft': plot.setLabel('bottom', 'Frequency', units='Hz')
         plot.getViewBox().setMouseMode(pg.ViewBox.RectMode if page.zoom_mode else pg.ViewBox.PanMode)
         panel = Q.QSplitter()
@@ -554,6 +560,9 @@ class Window(Q.QMainWindow):
             for curve in plot.curves.values(): curve.setLogMode(plot.log_x, plot.log_y)
             for axis, view in plot.extra_axes.values(): axis.setLogMode(plot.log_y)
         finally: page.syncing_x = False
+        annotations = list(getattr(plot, "annotations", []))
+        self.clear_annotations(plot)
+        for annotation in annotations: self.draw_annotation(plot, annotation)
         self.move_cursor(0, page.cursor_positions[0], page)
         self.move_cursor(1, page.cursor_positions[1], page)
         self.fit_plot(plot)
@@ -621,6 +630,7 @@ class Window(Q.QMainWindow):
                              lambda checked=False, i=index: self.choose_signal_color(plot, [i]))
         colors.setEnabled(bool(plot.curves))
         menu.addAction('Background color…', lambda: self.choose_background_color(plot))
+        menu.addAction('Clear annotations', lambda: self.clear_annotations(plot))
         return menu
 
     def choose_signal_color(self, plot, indices):
@@ -712,6 +722,7 @@ class Window(Q.QMainWindow):
                 plot.detach_curve(index)
                 del plot.curves[index]; del plot.signal_axes[index]
                 del plot.display_signals[index]
+                plot.fit_bounds = {key:value for key,value in plot.fit_bounds.items() if key[0] != index}
         plot.prune_axes()
         for row in range(plot.signal_list.count()-1, -1, -1):
             if plot.signal_list.item(row).data(QtCore.Qt.ItemDataRole.UserRole) in indices:
@@ -854,13 +865,23 @@ class Window(Q.QMainWindow):
             for index in plot.curves:
                 if plot.signal_axes[index] != key: continue
                 s = plot.display_signals[index]
-                y = np.abs(s.values) if np.iscomplexobj(s.values) else s.values
-                valid = np.isfinite(y)
-                if plot.log_x: valid &= s.time > 0
-                if plot.log_y: valid &= y > 0
-                finite = y[valid]
-                if plot.log_y: finite = np.log10(finite)
-                if len(finite): bounds.append((finite.min(), finite.max()))
+                cache_key = (index, plot.log_x, plot.log_y)
+                cached = plot.fit_bounds.get(cache_key)
+                if cached is None or cached[0] is not s:
+                    # Scan in bounded chunks, including memory-mapped sources.
+                    low, high = np.inf, -np.inf
+                    for start in range(0, len(s.time), 262144):
+                        y = s.values[start:start+262144]
+                        y = np.abs(y) if np.iscomplexobj(y) else y
+                        valid = np.isfinite(y)
+                        if plot.log_x: valid &= s.time[start:start+262144] > 0
+                        if plot.log_y: valid &= y > 0
+                        finite = y[valid]
+                        if plot.log_y: finite = np.log10(finite)
+                        if len(finite): low, high = min(low, finite.min()), max(high, finite.max())
+                    cached = (s, (float(low), float(high)))
+                    plot.fit_bounds[cache_key] = cached
+                if np.isfinite(cached[1]).all(): bounds.append(cached[1])
             if bounds:
                 plot.axis_view(key).setYRange(float(min(b[0] for b in bounds)), float(max(b[1] for b in bounds)), padding=0.05)
 
@@ -885,6 +906,18 @@ class Window(Q.QMainWindow):
         if self.workers:
             self.statusBar().showMessage('Please wait for imports to finish before closing.'); event.ignore()
         else: event.accept()
+
+
+
+# Capture composite actions once; snapshots retain array references rather than
+# duplicating recordings. Navigation stays independent of structural undo.
+for _method in ('loaded', 'remove_files', 'add_analysis', 'close_analysis', 'rename_analysis',
+                'add_plot', 'remove_plot', 'add_signal', 'remove_signals', 'clear_plots',
+                'choose_signal_color', 'choose_background_color', 'set_signal_axis',
+                'separate_signal_axes', 'set_plot_log', 'recalculate_fft',
+                'math_dialog', 'filter_dialog', 'align_dialog', 'annotate_dialog',
+                'event_dialog', 'clear_annotations', 'zoom_by', 'fit', 'set_zoom_mode'):
+    setattr(Window, _method, reversible(getattr(Window, _method)))
 
 
 def run(files=()):

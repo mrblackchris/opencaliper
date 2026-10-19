@@ -19,6 +19,11 @@ Start with the [step-by-step user guide](docs/USER_GUIDE.md). Contributors can f
 - Differential cursors for time, frequency and amplitude measurements.
 - FFT analysis tabs with drag-and-drop input, selectable source intervals, and logarithmic axes.
 - Minimum, maximum, peak-to-peak, mean, RMS and standard deviation.
+- Portable workspace save/restore with embedded recordings and derived channels.
+- Signal math, calculus, zero-phase filtering and recording alignment.
+- Interval annotations, threshold/peak/pulse/outlier detection and spectrograms.
+- PNG, SVG and PDF plot export with cursor measurements; undo and redo.
+- Memory-mapped NumPy input for large recordings, with display downsampling.
 - GUI, command-line and Python interfaces for supported imports and conversions.
 
 ## Easy start on Windows and Linux
@@ -185,6 +190,7 @@ opencaliper convert recording.mf4 converted.mat
 
 | File type | Import | Export |
 | --- | --- | --- |
+| NumPy `.npy` (time column followed by channel columns) | Yes, memory-mapped | No |
 | MATLAB `.mat` (documented acquisition and OpenCaliper layouts) | Yes | Yes |
 | MDF `.mdf` / `.mf4` | Yes | Yes |
 | Keysight `.bin` | Yes | No |
@@ -193,9 +199,15 @@ opencaliper convert recording.mf4 converted.mat
 
 Readers support numeric waveform data within these formats: Keysight normal/average float32 time waveforms, Yokogawa single-block IS2 data, MDF numeric scalar channels, and LTspice time-domain recordings with one plot per file. Compatibility depends on the file's encoding, not only its extension.
 
+### Workspace and signal tools
+
+The **Workspace** menu saves and opens portable `.ocw` sessions and exports individual plots as PNG, SVG or PDF. Sessions contain source samples, derived channels, tabs, curve colors, axes, plot ranges, cursors and annotations. **Edit → Undo/Redo** restores structural edits and processing actions.
+
+The **Signal tools** menu provides arithmetic expressions (`CH0 - CH1`, `integrate(CH0)`), filtering, manual/edge/correlation alignment, annotations, event detection and spectrograms. Results become additional channels for comparison. See [the detailed workflow](docs/USER_GUIDE.md#workspace-and-signal-tools) for settings and requirements.
+
 ### Current limits
 
-Recordings are loaded into memory. Imports run in background threads, while FFT calculation and export currently run on the interface thread. Large recordings can take time and memory. Analysis tabs are kept for the current session only.
+Most recording formats are loaded into memory; `.npy` input uses memory mapping. Imports run in background threads, while FFT calculation and export currently run on the interface thread. Large recordings can take time and memory. Save `.ocw` workspaces to retain analysis tabs between sessions.
 
 RAW and WVF export require real channels on identical, uniformly spaced time axes. RAW export requires finite voltage/current data and starts time at zero; its header records the original time origin. WVF output uses int16 quantization. Conversion does not preserve all device-specific metadata. Text, structured and bus-decoding channels are outside the current MDF import scope. See [the format guide](docs/MAT_FORMAT.md) for additional input limits.
 

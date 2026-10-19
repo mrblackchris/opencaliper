@@ -14,6 +14,9 @@ The GUI and CLI share the same import, export and analysis functions.
    launch [label="BAT / SH launcher\nscripts/launch.py"];
    cli [label="cli.py\ncommand dispatch"];
    gui [label="gui.py\nQt desktop workspace"];
+   workspace [label="workspace.py\nportable archives / undo"];
+   tools [label="tools.py\nprocessing dialogs / export"];
+   processing [label="processing.py\nsignal operations"];
    core [label="core.py\nSignal / Recording\nload / export"];
    analysis [label="analysis.py\nFFT / statistics / cursors"];
    acquisition [label="acquisition.py\nMAT scaling / waveform writers"];
@@ -22,6 +25,7 @@ The GUI and CLI share the same import, export and analysis functions.
    qt [label="PySide6 / pyqtgraph"];
    launch -> cli; cli -> gui; cli -> core; cli -> analysis;
    gui -> core; gui -> analysis; gui -> qt;
+   gui -> workspace; gui -> tools; tools -> processing; processing -> core;
    core -> acquisition; core -> raw; core -> libraries;
    acquisition -> libraries;
  }

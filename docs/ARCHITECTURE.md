@@ -21,6 +21,10 @@ flowchart TD
     CLI --> Core[core.py: Signal, Recording, load, export]
     CLI --> Analysis[analysis.py: FFT, statistics, cursors]
     GUI --> Core
+    GUI --> Workspace[workspace.py: archive and undo state]
+    GUI --> Tools[tools.py: processing dialogs and export]
+    Tools --> Processing[processing.py: math, filters, alignment, events, spectrogram]
+    Processing --> Core
     GUI --> Analysis
     Core --> Acquisition[acquisition.py: acquisition MAT and waveform helpers]
     Core --> Raw[raw.py: RAW writer]
@@ -33,6 +37,9 @@ flowchart TD
 | --- | --- | --- |
 | [core.py](../opencaliper/core.py) | Public data model; extension-based import/export dispatch; several format readers | File support, validation or common data representation |
 | [analysis.py](../opencaliper/analysis.py) | Numerical operations on full source arrays | FFT normalization, statistics or interpolation |
+| [workspace.py](../opencaliper/workspace.py) | Portable archives and reversible view/source snapshots | Workspace format and undo history |
+| [tools.py](../opencaliper/tools.py) | Interactive processing dialogs, annotations and plot export | Signal tools and exported plots |
+| [processing.py](../opencaliper/processing.py) | Qt-independent math, filters, alignment, events and spectrograms | Numerical processing |
 | [gui.py](../opencaliper/gui.py) | Qt widgets, loading workers, session state, plotting and interactions | Tabs, curves, axes, menus or cursor behavior |
 | [cli.py](../opencaliper/cli.py) | Argument parsing and calls into core/analysis | Commands and options |
 | [acquisition.py](../opencaliper/acquisition.py) | Acquisition MAT decoding, physical scaling, timestamp parsing, waveform quantization/writing | Acquisition convention or waveform export |
@@ -40,7 +47,7 @@ flowchart TD
 | [launch.py](../scripts/launch.py) | Creates `.venv`, installs the checkout and starts the GUI | First-run setup |
 | [pyproject.toml](../pyproject.toml) | Dependencies, package metadata and console entry points | Installation or packaging |
 
-Format dispatch currently uses conditionals inside `load()` and `export()`. There is no plugin registry. `gui.py` contains several classes in one module; the table below helps locate the relevant part without assuming each widget has its own file.
+Format dispatch currently uses conditionals inside `load()` and `export()`. There is no plugin registry. `Window` combines workspace and tool mixins with the core GUI controller. `gui.py` contains several widget classes in one module; the table below helps locate the relevant part without assuming each widget has its own file.
 
 ## Data model and contracts
 
@@ -111,7 +118,7 @@ A plot uses these same IDs as keys in `curves`, `display_signals`, `signal_color
 
 Drag-and-drop sends JSON-encoded signal IDs using the internal MIME type `application/x-opencaliper-signals`. It does not serialize measurement arrays. `Plot` emits the dropped ID and `Window.add_signal()` resolves the source and creates the curve and sidebar item. File drops instead use local file URLs and start an import.
 
-Removing a curve changes that plot. Unloading a file removes its IDs and curves from **all** tabs, then removes the explorer entry. Neither operation deletes the file on disk. Closing a tab removes its view state; the shared source registry remains available to other tabs. Layouts are not saved between sessions.
+Removing a curve changes that plot. Unloading a file removes its IDs and curves from **all** tabs, then removes the explorer entry. Neither operation deletes the file on disk. Closing a tab removes its view state; the shared source registry remains available to other tabs. Portable `.ocw` archives embed samples and preserve tab/plot state across sessions. Structural undo snapshots share source array references and reconstruct views.
 
 ## Axes, display and cursors
 
@@ -133,6 +140,6 @@ GUI **Export all** builds a new `Recording` from all loaded source signals, not 
 
 ## Boundaries and current limitations
 
-All recordings are loaded into memory. There is no streaming database, backend server, saved workspace format, automatic resampling or general unit-conversion layer. Core and analysis can run without creating a Qt application, although the standard installation includes GUI dependencies. Format-specific libraries are imported when their format is used.
+Most input formats load into memory. NumPy `.npy` inputs retain memory-mapped column views for OS-managed paging, although validation and processing still scan arrays. There is no streaming database, backend server, automatic resampling or general unit-conversion layer. Core and analysis can run without creating a Qt application, although the standard installation includes GUI dependencies. Format-specific libraries are imported when their format is used.
 
-The analysis functions are small and isolated; the GUI controller is comparatively concentrated in `Window`. If GUI complexity grows, extracting state and actions into separate modules is a possible future change. It is not a prerequisite for understanding or contributing to the current code.
+The analysis functions are small and isolated; the GUI controller is comparatively concentrated in `Window`. `workspace.py` now isolates archives/history, `tools.py` handles processing dialogs and exports, and `processing.py` holds Qt-independent algorithms. Processing and workspace serialization run on the GUI thread; very large operations can pause interaction.

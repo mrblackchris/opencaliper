@@ -78,6 +78,14 @@ def load(filename):
     function does not create GUI widgets or resample channels."""
     path = Path(filename)
     ext = path.suffix.lower()
+    if ext == '.npy':
+        # NPY is a simple memory-mapped large-recording interchange format:
+        # column zero is seconds, remaining columns are real-valued channels.
+        data = np.load(path, mmap_mode='r', allow_pickle=False)
+        if data.ndim != 2 or data.shape[1] < 2 or data.dtype.kind not in 'biuf':
+            raise ValueError('NPY input must be a real numeric N×(1+channels) array')
+        return Recording([Signal(f'Channel{i}', data[:, 0], data[:, i])
+                          for i in range(1, data.shape[1])], str(path))
     if ext == '.mat':
         from .acquisition import load_mat, read_measurement, text_value
         data = load_mat(path)
