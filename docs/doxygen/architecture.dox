@@ -12,21 +12,23 @@ The GUI and CLI share the same import, export and analysis functions.
    node [shape=box, style="rounded,filled", fillcolor="#eef4fb", fontname="sans-serif"];
    edge [fontname="sans-serif"];
    launch [label="BAT / SH launcher\nscripts/launch.py"];
+   direct [label="run_opencaliper.py\ncurrent interpreter"];
    cli [label="cli.py\ncommand dispatch"];
    gui [label="gui.py\nQt desktop workspace"];
    workspace [label="workspace.py\nportable archives / undo"];
    tools [label="tools.py\nprocessing dialogs / export"];
    processing [label="processing.py\nsignal operations"];
+   converters [label="converterscripts/\nregistry / readers / exporters"];
    core [label="core.py\nSignal / Recording\nload / export"];
    analysis [label="analysis.py\nFFT / statistics / cursors"];
    acquisition [label="acquisition.py\nMAT scaling / waveform writers"];
    raw [label="raw.py\nRAW writer"];
    libraries [label="SciPy / hdf5storage\nasammdf / spicelib"];
    qt [label="PySide6 / pyqtgraph"];
-   launch -> cli; cli -> gui; cli -> core; cli -> analysis;
+   direct -> gui; launch -> cli; cli -> gui; cli -> core; cli -> analysis;
    gui -> core; gui -> analysis; gui -> qt;
    gui -> workspace; gui -> tools; tools -> processing; processing -> core;
-   core -> acquisition; core -> raw; core -> libraries;
+   core -> converters; converters -> acquisition; converters -> raw; converters -> libraries;
    acquisition -> libraries;
  }
 @enddot
@@ -43,15 +45,15 @@ them to reference loaded sources. The explorer is shared by all analysis tabs.
    node [shape=box, style="rounded,filled", fillcolor="#eef8ee", fontname="sans-serif"];
    window [label="Window\nsource and file registries"];
    explorer [label="MeasurementExplorer\nfile / channel tree"];
-   page [label="AnalysisPage (one per tab)\nkind / cursors / FFT interval"];
-   plot [label="Plot (one per subplot)\ncurves / axes / colors\ndisplayed signals"];
-   signal [label="Signal\ntime / values / unit"];
+   page [label="AnalysisPage (one per tab)\nkind / cursors / A-B placement\nFFT interval / resampling"];
+   plot [label="Plot (one per subplot)\ncurves / axes / colors / aliases\nannotations / displayed signals"];
+   signal [label="Signal\ntime / values / unit / domain"];
    worker [label="Loader\none file import"];
    window -> explorer [label="owns"];
    window -> page [label="tabs"];
    page -> plot [label="plots"];
    window -> signal [label="source ID registry"];
-   plot -> signal [label="time: reference\nFFT: transformed result", style=dashed];
+   plot -> signal [label="time/spectrum: source reference\nFFT: transformed result", style=dashed];
    window -> worker [label="retains until finished"];
  }
 @enddot
@@ -66,6 +68,8 @@ them to reference loaded sources. The explorer is shared by all analysis tabs.
    worker [label="Window.open_path -> Loader.run\nworker thread calls core.load"];
    model [label="Recording with physical Signal arrays"];
    registry [label="Qt loaded signal -> Window.loaded\nGUI thread registers IDs and tree items"];
+   auto [label="Frequency sources: create Spectrum tab\nand plot detector channels automatically"];
+   registry -> auto; auto -> add;
    drag [label="Drag channel ID using internal MIME payload"];
    add [label="Window.add_signal\nresolve source; calculate FFT if needed"];
    display [label="Plot curve and signal sidebar"];
@@ -75,14 +79,23 @@ them to reference loaded sources. The explorer is shared by all analysis tabs.
 
 @section boundaries Important boundaries
 
-Import runs in worker threads. FFT and export currently run on the GUI thread.
-Recordings are fully loaded into memory. Plot downsampling is for display;
-analysis uses full source arrays. FFT pages store their source time interval
-separately from frequency cursor positions. In an FFT display, Signal.time
-holds frequency in Hz, an implementation convention documented by
-opencaliper.gui.Window.transformed_signal().
+Import runs in worker threads. FFT, processing, workspace serialization and export
+run on the GUI thread. Most formats load into memory; NPY input keeps memory-mapped
+backing. Time/FFT plots may downsample for display; imported Spectrum pages retain
+nonuniform frequency sweeps. Numerical analysis uses full source arrays.
 
-GUI "Export all" exports loaded source signals rather than displayed spectra.
-Session layouts are not persisted. Read `docs/ARCHITECTURE.md` for the complete
-behavior and known limitations.
+FFT pages store the source time interval separately from frequency cursors.
+Explicit linear resampling supports uneven acquisition times without changing
+source arrays. Signal.domain identifies seconds versus Hz while Signal.time
+retains the horizontal axis field name. ESRP MAT spectra open without an FFT.
+
+With differential cursors enabled, plain left clicks alternate A/B placement;
+drags and right-click menus remain available. Plot-local aliases affect legends,
+axis labels and cursor readouts without mutating the source channel name.
+
+GUI "Export all" exports loaded source channels rather than calculated FFT curves.
+Portable .ocw archives embed channel arrays and view state. Structural undo retains
+array references for up to 50 actions. Saved archives exclude undo history,
+processing recipes and transient spectrogram windows. Read `docs/ARCHITECTURE.md`
+and `docs/WORKSPACE_FORMAT.md` for complete behavior and limitations.
 */

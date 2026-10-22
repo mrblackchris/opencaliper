@@ -48,7 +48,9 @@ No server, Python environment activation or application imports are required to 
 ## What is included
 
 - Public data models and format entry points with units, return values and validation rules.
-- Numerical analysis documentation covering amplitude normalization, intervals and interpolation.
+- Numerical analysis documentation covering FFT normalization, explicit resampling, statistics, filters, calculus, alignment, event detection and spectrogram PSD.
+- Shared converter registry, per-format readers/exporters and ESRP frequency-domain import.
+- Workspace/undo state, modal control ownership and plot/image export boundaries.
 - GUI classes and key controller methods with state ownership and thread boundaries.
 - Acquisition helpers, RAW writing, CLI dispatch, example generation and startup code.
 - Linked source listings and class/inheritance views inferred by Doxygen.
@@ -56,7 +58,7 @@ No server, Python environment activation or application imports are required to 
 
 The curated drawings live in `docs/doxygen/architecture.dox`. They explicitly describe dynamic ownership that automatic Python analysis cannot reliably infer. Automatic class graphs are useful navigation, not a complete runtime call graph. Global call/caller graphs are disabled to avoid implying exhaustive dynamic Python analysis.
 
-Only `opencaliper/`, `scripts/`, the public generator and `docs/doxygen/` are scanned. `measFiles/`, `.venv`, private recordings and tests are not scanned. The generated reference has its own short landing page; the extended Markdown guides remain in the repository instead of being duplicated into generated pages with different diagram/link behavior.
+Only `opencaliper/`, `scripts/`, `run_opencaliper.py`, the public generator and `docs/doxygen/` are scanned. `measFiles/`, `.venv`, private recordings and tests are not scanned. The generated reference has its own short landing page; the extended Markdown guides remain in the repository instead of being duplicated into generated pages with different diagram/link behavior.
 
 ## GitHub Actions
 

@@ -10,9 +10,14 @@ This reference is generated from the checked-in Python source and docstrings.
 - @ref architecture : component drawings, ownership and loading sequence.
 - opencaliper.core.Signal and opencaliper.core.Recording : shared data model.
 - opencaliper.core.load() and opencaliper.core.export() : format entry points.
-- opencaliper.analysis : FFT, statistics and cursor interpolation.
+- opencaliper.analysis : FFT, explicit resampling, statistics and cursor interpolation.
+- opencaliper.processing : expressions, filters, alignment, events and spectrograms.
+- opencaliper.converterscripts.convert : shared format dispatcher.
+- opencaliper.workspace.WorkspaceMixin : archives and structural undo.
+- opencaliper.tools.ToolsMixin : processing dialogs and plot export.
 - opencaliper.gui.Window : desktop interaction controller.
 - scripts.launch.main() : first-run setup and launch.
+- run_opencaliper.main() : direct GUI launch in the selected environment.
 
 Use the Packages, Classes and Files navigation to inspect definitions and their
 source. Class diagrams show relationships Doxygen can infer. Python is dynamic,
@@ -24,7 +29,10 @@ explain runtime ownership explicitly.
 The repository's `docs/README.md` is the documentation index. Read
 `docs/USER_GUIDE.md` for application use, `docs/ARCHITECTURE.md` for the extended
 architecture explanation, `docs/DEVELOPMENT.md` for an executable API walkthrough
-and test map, and `docs/MAT_FORMAT.md` for the acquisition file convention.
+and test map, `docs/MAT_FORMAT.md` for MAT/ESRP layouts,
+`docs/PYTHON_API.md` for data/processing APIs, `docs/COMMAND_LINE.md` for terminal
+usage and `docs/WORKSPACE_FORMAT.md` for persisted state. The adapter contract
+and extension example live in `opencaliper/converterscripts/README.md`.
 The source checkout also contains `examples/example.py` and its synthetic MAT
 file. Private `measFiles/`, environments, tests and generated exports are not
 inputs to this documentation build.

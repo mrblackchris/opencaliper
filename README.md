@@ -8,7 +8,7 @@ OpenCaliper is a Python desktop application for exploring recorded signals in th
 
 ## Documentation
 
-Start with the [step-by-step user guide](docs/USER_GUIDE.md). Contributors can follow the [architecture overview and diagrams](docs/ARCHITECTURE.md), then the [developer walkthrough](docs/DEVELOPMENT.md) for API examples, debugging and extension points. The [documentation index](docs/README.md) links all guides. Generate the [Doxygen API reference](docs/DOXYGEN.md) for linked classes, functions, source listings and architecture drawings.
+Start with the [step-by-step user guide](docs/USER_GUIDE.md). Contributors can follow the [architecture overview and diagrams](docs/ARCHITECTURE.md), then the [developer walkthrough](docs/DEVELOPMENT.md) for API examples, debugging and extension points. The [documentation index](docs/README.md) links all guides, including the [command line](docs/COMMAND_LINE.md), [Python API](docs/PYTHON_API.md), [workspace schema](docs/WORKSPACE_FORMAT.md), and [converter extension guide](opencaliper/converterscripts/README.md). Generate the [Doxygen API reference](docs/DOXYGEN.md) for linked classes, functions, source listings and architecture drawings.
 
 ## Features
 
@@ -17,6 +17,8 @@ Start with the [step-by-step user guide](docs/USER_GUIDE.md). Contributors can f
 - Shared or separate Y axes, configurable curve colors and plot backgrounds.
 - Mouse-wheel and rectangle zoom, panning, and fit-to-data controls.
 - Differential cursors for time, frequency and amplitude measurements.
+- ESRP receiver MAT spectra (`freq`, `avg`, `pk`, `qpk`) open directly in a Spectrum tab.
+- Plot-local signal names configurable from the right-click menu.
 - FFT analysis tabs with drag-and-drop input, selectable source intervals, and logarithmic axes.
 - Minimum, maximum, peak-to-peak, mean, RMS and standard deviation.
 - Portable workspace save/restore with embedded recordings and derived channels.
@@ -88,6 +90,19 @@ start_opencaliper_no_venv.bat "C:\Measurements\capture.mat"
 
 After installation, `python -m opencaliper gui` and the command-line commands below also work in that environment.
 
+### Run the GUI directly with Python
+
+[`run_opencaliper.py`](run_opencaliper.py) lives in the top-level project folder, beside this README and above the `opencaliper` package. After installing dependencies into your chosen Python environment with `python -m pip install -e .`, launch it from a terminal or run it in your IDE:
+
+```bash
+python run_opencaliper.py
+python run_opencaliper.py examples/example.mat
+```
+
+Use `python3` on Linux or `py -3` on Windows if that is your chosen interpreter. This script uses the Python that runs it; it does not create or activate `.venv` or install packages. You can also explicitly use the project environment with `.venv/bin/python run_opencaliper.py` on Linux or `.venv\Scripts\python.exe run_opencaliper.py` on Windows.
+
+You can run the script by its full path from another directory. Relative measurement paths are resolved against your terminal's current directory. In an IDE, select the Python environment containing the dependencies and run this top-level script.
+
 ### Manual installation in `.venv` and command line
 
 For developers or command-line use on Linux:
@@ -127,6 +142,14 @@ python examples/example.py --output another-example.mat
 
 The script replaces the selected output file. No measurement hardware is required. Private recordings and local scripts belong in `measFiles/`, which is excluded from Git and source packages.
 
+## ESRP receiver spectra
+
+MAT files with a `freq` vector and any of `avg`, `pk`, or `qpk` are recognized as frequency-domain data. Opening one immediately plots **Average**, **Peak**, and **Quasipeak** in a **Spectrum** tab, without computing an FFT. Row and column vectors and MATLAB v7.3 files are supported.
+
+Frequency values default to Hz. An optional `freq_unit` field can specify Hz, kHz, MHz or GHz. Amplitudes are preserved as supplied; optional `unit` or detector-specific `avg_unit`/`pk_unit`/`qpk_unit` fields provide their units. Without that metadata, amplitude units remain unspecified. Spectrum plots default to logarithmic X and linear Y so negative dB levels remain visible.
+
+Right-click a curve or its sidebar entry and choose **Rename signal…** to change its plot label. Names are local to the subplot and are retained in saved workspaces.
+
 ## Compatible MAT input
 
 The usual acquisition convention stores channels as top-level variables `Channel1_t1`, `Channel2_t1`, and so on. Despite the suffix, these arrays contain **amplitude samples**, not time vectors. OpenCaliper displays them as `Channel1`, `Channel2`, etc.
@@ -158,7 +181,7 @@ To import another file type, convert its physical samples and timing into this l
 2. Drag channels into a plot. Double-clicking a channel adds it to the first plot of the active tab.
 3. Use **Add plot** for another subplot or **New analysis** for an independent time-domain tab.
 4. Drag plot dividers to adjust sizes. Use **Pan**, **Rectangle zoom**, the mouse wheel, or **Fit both axes** to navigate.
-5. Enable **Diff cursors** and drag A/B to compare values. Cursor positions are shared within a tab.
+5. Enable **Diff cursors** and left-click in a plot to place A, then B (alternating). Drag either cursor to adjust it. Click placement also recovers cursors outside a zoomed view. Cursor positions are shared within a tab.
 
 Select entries beside a plot and press **Delete** to remove those curves. **Clear plot** removes all curves in that subplot; **×** removes the subplot itself. Deleting a file entry in the Explorer unloads its signals from all tabs without deleting the file on disk.
 
@@ -170,7 +193,7 @@ Right-click a signal to change its color or choose a main, separate, or shared Y
 
 If time-domain cursors are enabled when FFT opens, their interval becomes the source time interval. Otherwise, the full signal is used. Edit **Time interval** and click **Recalculate** to update all spectra in that tab. Frequency-domain cursors measure Hz, Δf and interpolated amplitudes independently of the source time interval. Logarithmic amplitude display does not convert values to decibels.
 
-**Statistics** analyzes the selected signal or spectrum, using the current tab's cursor interval when enabled. Time cursors report seconds, Δt, 1/|Δt| and interpolated signal differences. Outside the recorded range, interpolated values are unavailable and shown as NaN. Statistics ignore nonfinite samples; FFT requires at least four finite real samples on a uniformly spaced time axis.
+**Statistics** analyzes the selected signal or spectrum, using the current tab's cursor interval when enabled. Time cursors report seconds, Δt, 1/|Δt| and interpolated signal differences. Outside the recorded range, interpolated values are unavailable and shown as NaN. Statistics ignore nonfinite samples; FFT requires at least four finite real samples. For uneven timestamps, enable **Resample (linear)** in the FFT tab, leave the sample rate at **Auto** or enter Hz, and click **Recalculate**. Source data stays unchanged; interpolation estimates a uniform grid and does not add measured bandwidth.
 
 ## Command line
 
@@ -185,6 +208,20 @@ opencaliper convert recording.mf4 converted.mat
 ```
 
 `--signal` is the zero-based channel index printed by `info`; interval values are seconds. `python -m opencaliper` provides the same commands. `mat2raw input.mat output.raw` is a shortcut for RAW conversion. Converters refuse to overwrite files unless `--overwrite` is supplied; FFT CSV output also refuses existing files.
+
+## Converter scripts and adding formats
+
+All import/export adapters live in [`opencaliper/converterscripts/`](opencaliper/converterscripts/README.md), with separate files such as `mdfconvert.py`, `wvfconvert.py`, `rawconvert.py`, `matexport.py` and `mdfexport.py`. A central dispatcher detects the extension and chooses the adapter. The viewer and CLI use this same registry.
+
+```bash
+python -m opencaliper.converterscripts recording.mf4
+python -m opencaliper.converterscripts recording.wvf recording.mat
+python opencaliper/converterscripts/convert.py recording.raw recording.mat
+```
+
+Without an output argument, conversion creates `recording.opencaliper.mat`, the native OpenCaliper interchange layout. It preserves physical samples, independent channel time axes, names, units and acquisition timestamp. Other registered export formats can be selected through the output extension. Existing outputs require `--overwrite`.
+
+The [converter guide](opencaliper/converterscripts/README.md) documents the expected `Recording`/`Signal` objects, MAT fields, adapter functions and a contributor example. Add a reader/exporter and register its extension in `formats.py`; the GUI file pickers update automatically.
 
 ## File support
 
@@ -209,7 +246,7 @@ The **Signal tools** menu provides arithmetic expressions (`CH0 - CH1`, `integra
 
 Most recording formats are loaded into memory; `.npy` input uses memory mapping. Imports run in background threads, while FFT calculation and export currently run on the interface thread. Large recordings can take time and memory. Save `.ocw` workspaces to retain analysis tabs between sessions.
 
-RAW and WVF export require real channels on identical, uniformly spaced time axes. RAW export requires finite voltage/current data and starts time at zero; its header records the original time origin. WVF output uses int16 quantization. Conversion does not preserve all device-specific metadata. Text, structured and bus-decoding channels are outside the current MDF import scope. See [the format guide](docs/MAT_FORMAT.md) for additional input limits.
+RAW and WVF export require real channels on identical, uniformly spaced time axes. RAW export requires finite voltage/current data and starts time at zero; its header records the original time origin. WVF output uses int16 quantization. Conversion does not preserve all device-specific metadata. MDF numeric state channels with text labels are plotted using their numeric codes; numerical gain/offset conversions still apply. Files with no supported numeric scalar channels report an error. Text, structured and bus-decoding channels are outside the current MDF import scope. See [the format guide](docs/MAT_FORMAT.md) for additional input limits.
 
 ## Development
 

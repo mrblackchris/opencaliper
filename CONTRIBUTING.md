@@ -33,7 +33,7 @@ Commit documentation sources rather than generated `docs-api/` output. The [docu
 - Keep the change focused and update documentation for changed behavior.
 - Add regression coverage for parser, numerical or interaction changes when appropriate. Use synthetic fixtures and independent expected values for numerical tests.
 - Keep imports, conversions and analysis callable independently of the GUI.
-- Document scaling, units, timing and unsupported cases for file-format adapters. Do not silently invent metadata or resample inputs.
+- Document scaling, units, timing and unsupported cases for file-format adapters. Do not silently invent metadata or resample inputs. A frequency-domain reader sets `Signal.domain="frequency"` and supplies Hz. Explicit FFT resampling is an analysis option, not an import operation.
 - Be respectful and constructive in issues and reviews.
 
 By contributing, you agree that your contributions may be distributed under the project's GPL-3.0-only license. Submit only material you have the right to contribute, and retain required third-party notices. Do not copy proprietary code, assets or confidential measurements into a contribution.
@@ -46,8 +46,13 @@ To run optional local capture tests, set `OPENCALIPER_TEST_DATA_DIR` to a direct
 
 ## Source layout
 
-- `opencaliper/core.py`: signal model, imports and exports.
-- `opencaliper/analysis.py`: numerical analysis.
+- `opencaliper/core.py`: shared signal model and public load/export entry points.
+- `opencaliper/converterscripts/`: format readers, exporters and registry; see the [converter contributor guide](opencaliper/converterscripts/README.md).
+- `opencaliper/analysis.py`: FFT, explicit resampling, statistics and cursor interpolation.
+- `opencaliper/processing.py`: expressions, filtering, alignment, events and spectrograms.
+- `opencaliper/tools.py`: processing dialogs, annotations and plot export.
+- `opencaliper/workspace.py`: portable archives and undo/redo; see the [schema](docs/WORKSPACE_FORMAT.md).
+- `run_opencaliper.py`: direct GUI launcher using the selected Python environment.
 - `opencaliper/gui.py`: desktop workspace and interaction.
 - `opencaliper/cli.py`: command-line entry points.
 - `opencaliper/acquisition.py`, `opencaliper/raw.py`: acquisition-layout and waveform export helpers.

@@ -7,6 +7,7 @@ from . import processing
 
 
 class ToolsMixin:
+    """GUI-thread actions for processing, plot annotations and image/vector export."""
     def init_tools(self):
         file = self.menuBar().addMenu('Workspace')
         file.addAction('Save workspace…', lambda: self.save_workspace()).setShortcut('Ctrl+Shift+S')
@@ -19,6 +20,11 @@ class ToolsMixin:
             tools.addAction(text,fn)
 
     def form(self,title,fields):
+        """Show a modal form and return acceptance, keeping supplied widgets alive.
+
+        Controls are detached before deferred dialog deletion so callers can read
+        their values after return. This applies on acceptance and cancellation.
+        """
         dialog = Q.QDialog(self); dialog.setWindowTitle(title)
         layout = Q.QFormLayout(dialog)
         for label,widget in fields: layout.addRow(label,widget)
@@ -41,8 +47,10 @@ class ToolsMixin:
         return box
 
     def derived(self,signal):
+        """Register a materialized result and display it in a matching-domain tab."""
         self.loaded(Recording([signal],'Derived signals'))
-        if self.workspace.kind != 'time': self.add_analysis()
+        kind = 'spectrum' if signal.domain == 'frequency' else 'time'
+        if self.workspace.kind != kind: self.add_analysis(kind)
         if not self.plots: self.add_plot()
         self.add_signal(self.next_signal_id-1,self.plots[0])
 
@@ -76,6 +84,8 @@ class ToolsMixin:
         if not self.form('Align recording',[('Source',source),('Reference',reference),('Method',mode),('Manual offset',shift),('Edge threshold',level),('',whole)]): return
         try:
             s,r = self.signals[source.currentData()],self.signals[reference.currentData()]
+            if s.domain != 'time' or (mode.currentIndex() != 0 and r.domain != 'time'):
+                raise ValueError('Recording alignment requires time-domain samples')
             offset = shift.value()
             if mode.currentIndex() == 1: offset = processing.aligned(s,r).time[0]-s.time[0]
             if mode.currentIndex() == 2:
@@ -84,6 +94,8 @@ class ToolsMixin:
                 offset = b[0]-a[0]
             ids = [source.currentData()]
             if whole.isChecked(): ids = next(ids for root,ids in self.files.values() if source.currentData() in ids)
+            if any(self.signals[i].domain != 'time' for i in ids):
+                raise ValueError('Cannot time-shift a recording containing frequency-domain channels')
             shifted = [Signal(f'{self.signals[i].name} shifted {offset:+g} s',self.signals[i].time+offset,self.signals[i].values,self.signals[i].unit) for i in ids]
             start = self.next_signal_id; self.loaded(Recording(shifted,'Aligned recording'))
             if self.workspace.kind != 'time': self.add_analysis()
@@ -166,6 +178,12 @@ class ToolsMixin:
         except Exception as exc: self.error(str(exc))
 
     def export_plot_to(self,plot,path):
+        """Render a subplot to PNG, SVG or PDF, including labels and cursor values.
+
+        PNG width is 2400 pixels with 300 DPI metadata. Vector formats retain
+        scene drawing. Plot-local aliases and visible annotations are included.
+        Uses GUI objects and must run on the GUI thread; existing output is replaced.
+        """
         from pathlib import Path
         from PySide6 import QtSvg
         suffix = Path(path).suffix.lower()
@@ -187,12 +205,12 @@ class ToolsMixin:
             if page.cursors_visible:
                 from .analysis import cursor_values
                 a,b = page.cursor_positions
-                axis_unit = 'Hz' if page.kind == 'fft' else 's'
+                axis_unit = 'Hz' if page.kind in ('fft', 'spectrum') else 's'
                 footer.append(f'A = {a:.9g} {axis_unit}   B = {b:.9g} {axis_unit}   Δ = {b-a:.9g} {axis_unit}')
-                for s in plot.display_signals.values():
+                for index, s in plot.display_signals.items():
                     if np.iscomplexobj(s.values): continue
                     values = cursor_values(s,a,b)
-                    footer.append(f'{s.name}: A {values["a"]:.7g}  B {values["b"]:.7g}  ΔY {values["delta"]:.7g} {s.unit}')
+                    footer.append(f'{self.display_name(plot, index)}: A {values["a"]:.7g}  B {values["b"]:.7g}  ΔY {values["delta"]:.7g} {s.unit}')
             font = QtGui.QFont(); font.setPixelSize(max(14,int(width/100)))
             footer_height = min(height/3, (len(footer)+1)*width/70) if footer else 0
             painter.fillRect(QtCore.QRectF(0,0,width,height),plot.backgroundBrush())

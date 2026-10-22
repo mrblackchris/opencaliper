@@ -54,6 +54,14 @@ class CoreTests(unittest.TestCase):
         with self.assertRaises(ValueError): fft(Signal('bad',[0,1,2,4],[0,1,0,1]))
         with self.assertRaises(ValueError): fft(Signal('bad',[0,1,2,3],[0,1,np.nan,1]))
 
+    def test_fft_errors_distinguish_short_nonfinite_and_complex(self):
+        with self.assertRaisesRegex(ValueError, 'contains 2 of 1024'):
+            fft(self.signal, 0, 1/1024)
+        with self.assertRaisesRegex(ValueError, '1 NaN/Inf samples out of 4'):
+            fft(Signal('invalid', [0,1,2,3], [0,np.nan,0,1]))
+        with self.assertRaisesRegex(ValueError, 'complex values'):
+            fft(Signal('complex', [0,1,2,3], [0,1j,0,1]))
+
     @unittest.skipUnless(os.getenv('OPENCALIPER_TEST_DATA_DIR'), 'Optional local file fixtures are not included')
     def test_sample_files(self):
         root = Path(os.environ['OPENCALIPER_TEST_DATA_DIR'])

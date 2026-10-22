@@ -56,11 +56,15 @@ export(output, Path('derived.mat'))
 Read these definitions in order:
 
 1. `Signal` and `Recording` in [core.py](../opencaliper/core.py): the objects passed between components.
-2. `load()` and the MAT branch in that file: file-to-model conversion.
+2. `load()` in `core.py`, the dispatcher in [converterscripts/convert.py](../opencaliper/converterscripts/convert.py), and [matconvert.py](../opencaliper/converterscripts/matconvert.py): file-to-model conversion.
 3. `load_mat()` and `read_measurement()` in [acquisition.py](../opencaliper/acquisition.py): storage detection and physical scaling.
 4. `statistics()`, `fft()` and `cursor_values()` in [analysis.py](../opencaliper/analysis.py): numerical behavior.
 5. `main()` in [cli.py](../opencaliper/cli.py): these same calls from the command line.
 6. `Loader`, `Window.loaded()`, `Window.add_signal()` and `Window.transformed_signal()` in [gui.py](../opencaliper/gui.py): file loading through to displayed curves.
+
+For domain-aware examples, processing contracts and explicit FFT resampling, see
+[the Python API guide](PYTHON_API.md). The [workspace schema](WORKSPACE_FORMAT.md)
+documents persisted state, optional defaults and migration responsibilities.
 
 ## 3. Run and debug
 
@@ -70,7 +74,7 @@ python -m opencaliper stats examples/example.mat --signal 0
 python -m opencaliper gui examples/example.mat
 ```
 
-For an IDE, select `.venv` as the interpreter, use the repository as the working directory, launch the module `opencaliper`, and set arguments to `gui examples/example.mat`. The package module entry point avoids relative-import problems caused by running package files as standalone scripts.
+For an IDE, select a Python environment with the dependencies installed and run the top-level `run_opencaliper.py`, optionally with `examples/example.mat` as an argument. Alternatively launch the module `opencaliper` with arguments `gui examples/example.mat`. Relative measurement paths use the working directory. The [startup guide](../README.md#run-the-gui-directly-with-python) also covers the managed `.venv` and existing-environment launchers.
 
 Useful breakpoint locations:
 
@@ -91,19 +95,17 @@ Core functions raise exceptions. The CLI prints errors and returns a nonzero exi
 
 ### Add an input format
 
-Write a reader that returns `Recording([Signal(...)], source=str(path), timestamp=...)` and connect it to the extension dispatch in `core.load()`. Small readers currently live in `core.py`; a larger adapter can live in a separate module.
+Create a `read(path) -> Recording` adapter in `opencaliper/converterscripts/` and register the extension in `formats.py`. The [converter guide](../opencaliper/converterscripts/README.md) documents the shared in-memory model, native MAT fields, supported variants and a complete contributor example. Decode physical values and horizontal units explicitly: seconds for `domain="time"`, Hz for `domain="frequency"`. Do not silently resample data.
 
-Decode physical units and seconds explicitly. Validate lengths, headers and unsupported variants. Document when timestamps or other metadata are unavailable. Preserve independent channel time axes where appropriate. Do not use plotting code to correct scaling errors or silently resample input.
-
-Add synthetic parser tests, including a malformed input case and independently calculated expected values. Update the file filter in `Window.open_files()` so the GUI can discover the extension, the README support table, and dependencies if needed. Update packaging if you introduce another package directory; setuptools currently lists the single `opencaliper` package explicitly.
+Add synthetic parser tests, including malformed input and independently calculated scaling/timing expectations. Registering an extension updates API dispatch, CLI conversion and GUI file filters automatically. Format-specific dependencies belong inside adapters and in project dependency metadata where needed.
 
 ### Add an output format
 
-Add a branch to `core.export()`, keeping `overwrite=False` as the default. Validate format constraints before writing where possible. If the GUI should offer the format, update `Window.save()`'s filter. Exercise the writer using a separate reader or byte-level expectations; using the same faulty formula in a writer and reader can make a round-trip test pass incorrectly.
+Create a writer exposing `write(recording, path, overwrite=False)` and register its module in `formats.py`. Keep overwrite protection, including companion files, and validate format constraints before writing. Exercise the writer using a separate reader or byte-level expectations; a reader and writer with the same faulty formula can pass a round-trip test.
 
 ### Add an analysis operation
 
-Implement the numerical function in `analysis.py` using the shared model and arrays. Decide its rules for intervals, nonfinite data, complex values and nonuniform sampling. Test the expected numeric result independently before wiring it into `cli.py` or a GUI action. If an operation changes the horizontal domain, document its units and avoid confusing it with source timestamps.
+Implement the numerical function in `analysis.py` or `processing.py` using the shared model and arrays. Decide its rules for intervals, nonfinite data, complex values and nonuniform sampling. Test the expected numeric result independently before wiring it into `cli.py` or a GUI action. If an operation changes the horizontal domain, document its units and avoid confusing it with source timestamps.
 
 ### Change a GUI interaction
 
@@ -120,12 +122,19 @@ python -m unittest discover -s tests -p test_fft_gui.py -v
 
 | Test file | Main coverage |
 | --- | --- |
+| `test_converter_dispatch.py` | Registry extensions, native conversion, CLI/script integration and overwrite checks |
 | `test_core.py` | Analysis, supported export/import round trips, independent axes and channel order |
 | `test_converters.py` | Acquisition layouts, scaling, waveform headers and quantization |
 | `test_raw.py` | Binary RAW precision, layout and invalid output handling |
 | `test_example.py` | Bundled/generated MAT fields, physical samples and timing |
 | `test_gui.py` | Explorer, plots, removal, navigation, colors and axis interactions |
 | `test_fft_gui.py` | FFT workspaces, intervals, log displays and frequency cursors |
+| `test_mdf.py` | Numeric MDF/MF4 conversions, labelled state channels and unsupported files |
+| `test_esrp.py` | ESRP vectors, v7.3 MAT, native frequency metadata, auto-plot and plot-local renaming |
+| `test_cursor_clicks.py` | A/B click placement, logarithmic axes, subplot synchronization and preserved drag/menu gestures |
+| `test_fft_resampling.py` | Known-tone interpolation, Auto/manual rates, retries, CLI and workspace persistence |
+| `test_processing.py` | Signal math/calculus, filter response, alignment, events, spectrograms and memory-mapped inputs |
+| `test_workspace.py` | Session round trips, source identity, undo/redo, real dialog lifetimes and plot exports |
 | `test_launcher.py` | Environment creation, setup reuse/failure and argument forwarding |
 
 Tests use synthetic data. Some optional private-fixture checks skip unless `OPENCALIPER_TEST_DATA_DIR` is set; see [Contributing](../CONTRIBUTING.md#test-data). `measFiles/` stays local and is not a CI dependency. The CI workflow currently tests Linux with Python 3.10 and 3.12; it does not establish Windows execution coverage.
@@ -146,6 +155,6 @@ Use ordinary Python docstrings with Doxygen `@param`, `@return` and `@exception`
 
 When changing behavior, update the user guide; when changing ownership or call paths, update the architecture guide, its Mermaid diagrams and the corresponding Graphviz drawings in `docs/doxygen/architecture.dox`. Keep diagrams close to the code and verify the method names they mention. Review generated or assisted changes against actual behavior, expected numerical results and tests just as you would any other contribution. Architecture diagrams are a navigation aid, not proof that the implementation is correct.
 
-Run `python -m build` for packaging changes and inspect the resulting archives. `MANIFEST.in` includes Markdown guides, `Doxyfile`, the `.dox` diagram/page sources, launchers and the public synthetic example in the source distribution, while excluding `measFiles/`. A wheel primarily carries installable code; the complete onboarding material is in the repository/source archive. See [Releasing](RELEASING.md) for distribution checks.
+Run `python -m build` for packaging changes and inspect the resulting archives. `MANIFEST.in` includes Markdown guides, `Doxyfile`, the `.dox` diagram/page sources, launchers and the public synthetic example in the source distribution, while excluding `measFiles/`. A wheel includes installable code and the converter adapter guide; the complete onboarding material and root launcher are in the repository/source archive. See [Releasing](RELEASING.md) for distribution checks.
 
 The separate [documentation workflow](../.github/workflows/documentation.yml) generates the reference, checks for warnings and uploads the HTML as an artifact. It does not enable GitHub Pages. Generated `docs-api/` files stay outside Git and release source archives; regenerate them from the checked-in configuration and comments.

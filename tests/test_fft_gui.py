@@ -204,3 +204,49 @@ class FftGuiTests(unittest.TestCase):
         self.assertNotEqual(p.curves[0].opts['pen'].color(),chosen)
         page.recalculate.click()
         self.assertEqual(p.curves[1].opts['pen'].color(),chosen)
+
+    def test_short_interval_can_retry_full_record_without_readding(self):
+        w = self.window
+        w.list.setCurrentItem(w.signal_items[0])
+        w.cursors_enabled.setChecked(True)
+        w.move_cursor(0,0); w.move_cursor(1,1/1024)
+        with patch.object(w,'error') as error:
+            page = w.spectrum()
+        self.assertIn('contains 2 of 1024',error.call_args.args[0])
+        self.assertIn('Recalculate',error.call_args.args[0])
+        self.assertEqual(page.pending_signals,{0})
+        self.assertFalse(page.plots[0].curves)
+        page.use_interval.setChecked(False)
+        with patch.object(w,'error') as error:
+            w.recalculate_fft(page)
+            error.assert_not_called()
+        self.assertIn(0,page.plots[0].curves)
+        self.assertFalse(page.pending_signals)
+        self.assertEqual(len(page.plots[0].display_signals[0].time),513)
+
+    def test_invalid_values_can_retry_finite_contiguous_interval(self):
+        w = self.window
+        values = self.sources[0].values.copy(); values[0] = np.nan
+        w.loaded(Recording([Signal('Missing sample',self.sources[0].time,values,'V')],'missing.mat'))
+        w.list.setCurrentItem(w.signal_items[2])
+        with patch.object(w,'error') as error: page = w.spectrum()
+        self.assertIn('1 NaN/Inf samples out of 1024',error.call_args.args[0])
+        page.use_interval.setChecked(True)
+        page.start_time.setValue(0.125); page.stop_time.setValue(0.5)
+        with patch.object(w,'error') as error:
+            w.recalculate_fft(page)
+            error.assert_not_called()
+        self.assertIn(2,page.plots[0].curves)
+        self.assertTrue(np.isnan(w.signals[2].values[0]))
+
+    def test_unloading_clears_pending_fft_sources(self):
+        w = self.window
+        w.list.setCurrentItem(w.signal_items[0])
+        w.cursors_enabled.setChecked(True)
+        w.move_cursor(0,0); w.move_cursor(1,0)
+        with patch.object(w,'error'): page = w.spectrum()
+        w.remove_files([0])
+        self.assertFalse(page.pending_signals)
+        with patch.object(w,'error') as error:
+            w.recalculate_fft(page)
+            error.assert_not_called()

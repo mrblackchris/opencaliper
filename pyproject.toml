@@ -26,4 +26,7 @@ opencaliper = "opencaliper.cli:main"
 mat2raw = "opencaliper.cli:mat2raw"
 
 [tool.setuptools]
-packages = ["opencaliper"]
+packages = ["opencaliper", "opencaliper.converterscripts"]
+
+[tool.setuptools.package-data]
+"opencaliper.converterscripts" = ["README.md"]

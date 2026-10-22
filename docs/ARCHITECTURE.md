@@ -19,6 +19,11 @@ flowchart TD
     Module[python -m opencaliper] --> CLI
     CLI --> GUI[gui.py: desktop workspace]
     CLI --> Core[core.py: Signal, Recording, load, export]
+    Core --> Dispatch[converterscripts/convert.py and formats.py]
+    Dispatch --> Adapters[Per-format readers and exporters]
+    Adapters --> Acquisition
+    Adapters --> Raw
+    Adapters --> Libraries
     CLI --> Analysis[analysis.py: FFT, statistics, cursors]
     GUI --> Core
     GUI --> Workspace[workspace.py: archive and undo state]
@@ -26,16 +31,17 @@ flowchart TD
     Tools --> Processing[processing.py: math, filters, alignment, events, spectrogram]
     Processing --> Core
     GUI --> Analysis
-    Core --> Acquisition[acquisition.py: acquisition MAT and waveform helpers]
-    Core --> Raw[raw.py: RAW writer]
-    Core --> Libraries[SciPy, asammdf, spicelib]
+    Acquisition[acquisition.py: acquisition MAT and waveform helpers]
+    Raw[raw.py: RAW writer]
+    Libraries[SciPy, asammdf, spicelib]
     Acquisition --> MAT[SciPy and hdf5storage]
     GUI --> Qt[PySide6 and pyqtgraph]
 ```
 
 | Source | Responsibility | Read when changing |
 | --- | --- | --- |
-| [core.py](../opencaliper/core.py) | Public data model; extension-based import/export dispatch; several format readers | File support, validation or common data representation |
+| [converterscripts/](../opencaliper/converterscripts/README.md) | Format registry, detection, separate readers/exporters and native MAT conversion | Adding file formats |
+| [core.py](../opencaliper/core.py) | Public data model and stable load/export facade | File support, validation or common data representation |
 | [analysis.py](../opencaliper/analysis.py) | Numerical operations on full source arrays | FFT normalization, statistics or interpolation |
 | [workspace.py](../opencaliper/workspace.py) | Portable archives and reversible view/source snapshots | Workspace format and undo history |
 | [tools.py](../opencaliper/tools.py) | Interactive processing dialogs, annotations and plot export | Signal tools and exported plots |
@@ -47,11 +53,11 @@ flowchart TD
 | [launch.py](../scripts/launch.py) | Creates `.venv`, installs the checkout and starts the GUI | First-run setup |
 | [pyproject.toml](../pyproject.toml) | Dependencies, package metadata and console entry points | Installation or packaging |
 
-Format dispatch currently uses conditionals inside `load()` and `export()`. There is no plugin registry. `Window` combines workspace and tool mixins with the core GUI controller. `gui.py` contains several widget classes in one module; the table below helps locate the relevant part without assuming each widget has its own file.
+Format dispatch lives in `converterscripts/convert.py`, using the explicit registry in `formats.py`. Per-format `*convert.py` readers return `Recording`; `*export.py` writers consume it. The GUI file pickers also use the registry. See the [adapter contract](../opencaliper/converterscripts/README.md). `Window` combines workspace and tool mixins with the core GUI controller. `gui.py` contains several widget classes in one module; the table below helps locate the relevant part without assuming each widget has its own file.
 
 ## Data model and contracts
 
-`Signal(name, time, values, unit)` represents one channel. `Recording(signals, source, timestamp)` groups channels originating from a file or constructed in Python. `source` is a path string used for identification; `timestamp` is separate acquisition metadata.
+`Signal(name, time, values, unit, domain="time")` represents one channel. A frequency-domain source sets `domain="frequency"`; its compatible `time` field then holds Hz. `Recording(signals, source, timestamp)` groups channels originating from a file or constructed in Python. `source` is a path string used for identification; `timestamp` is separate acquisition metadata.
 
 ```mermaid
 classDiagram
@@ -66,6 +72,7 @@ classDiagram
         ndarray time
         ndarray values
         str unit
+        str domain
         region(start, stop)
     }
 ```
@@ -74,9 +81,9 @@ classDiagram
 
 `Signal.region()` selects existing samples between bounds, including a sample exactly on either bound. It sorts two supplied bounds, uses `searchsorted`, and does not insert interpolated boundary samples. Cursor interpolation is a separate operation.
 
-Values can be complex or contain NaN/Inf in the general model. Individual operations impose stricter requirements. Importers must return physical amplitudes and timestamps in seconds. Keep the source data unchanged during plotting; display configuration belongs to the plot or analysis page. The dataclasses and arrays are mutable, so this separation is a programming convention rather than enforced immutability.
+Values can be complex or contain NaN/Inf in the general model. Individual operations impose stricter requirements. Importers must return physical amplitudes and domain-labelled horizontal coordinates: seconds for time data or Hz for frequency data. Keep the source data unchanged during plotting; display configuration belongs to the plot or analysis page. The dataclasses and arrays are mutable, so this separation is a programming convention rather than enforced immutability.
 
-FFT plots reuse `Signal`: its `time` array holds **frequency in Hz** there. The page's `kind` distinguishes a time trace from a spectrum. This is an implementation compromise to remember when extending code that labels or interprets an axis.
+FFT plots and imported receiver spectra use `Signal(domain="frequency")`: the `time` array holds **frequency in Hz**. ESRP MAT files route through `esrpconvert.py` and open a `spectrum` page with all detector channels, without an FFT. The page's `kind` distinguishes a time trace from a spectrum. This is an implementation compromise to remember when extending code that labels or interprets an axis.
 
 ## Loading a recording
 
@@ -107,14 +114,14 @@ For acquisition MAT data, `core.load()` calls `read_measurement(..., quantize_ou
 | `Window` | Shared explorer, all tabs, loading workers, file and signal registries |
 | `MeasurementExplorer` | File/channel tree; file-drop and unload requests; drag payload creation |
 | `SignalList` | Per-plot signal sidebar; selection and removal requests |
-| `AnalysisPage` | One tab's plots, cursor positions/visibility, navigation mode and FFT source interval |
-| `Plot` | Curves, displayed signals, colors, axis assignments, additional Y views and log settings |
+| `AnalysisPage` | One tab's plots, cursor positions/visibility, next A/B click, navigation mode, pending FFT channels and applied interval/resampling settings |
+| `Plot` | Curves, displayed signals, colors, local display names, annotations, axis assignments, additional Y views, cached fit bounds and log settings |
 | `SignalViewBox` | Plot context-menu behavior |
 | `Loader` | A single asynchronous file read |
 
 `Window.signals` maps monotonically assigned integer IDs to source `Signal` objects. `signal_items` maps these IDs to explorer items. `files` maps file IDs to a tree root and its signal IDs. IDs are session-local references, not channel names or persistent file identifiers. Identical channel names from different recordings therefore remain distinct.
 
-A plot uses these same IDs as keys in `curves`, `display_signals`, `signal_colors` and `signal_axes`. For a time page, `display_signals` references source signals; for FFT pages, it contains transformed signals. Several plots can display the same source independently.
+A plot uses these same IDs as keys in `curves`, `display_signals`, `signal_colors`, `signal_names` and `signal_axes`. `signal_names` holds subplot-local display aliases; source names remain unchanged. For time and Spectrum pages, `display_signals` references source signals; FFT pages contain transformed signals. Several plots can display the same source independently.
 
 Drag-and-drop sends JSON-encoded signal IDs using the internal MIME type `application/x-opencaliper-signals`. It does not serialize measurement arrays. `Plot` emits the dropped ID and `Window.add_signal()` resolves the source and creates the curve and sidebar item. File drops instead use local file URLs and start an import.
 
@@ -124,19 +131,34 @@ Removing a curve changes that plot. Unloading a file removes its IDs and curves 
 
 The main `ViewBox` provides the default Y axis. Additional Y axes pair a right-side `AxisItem` with another `ViewBox`; X coordinates remain linked. `Plot.assign_axis()` reparents curves, and `prune_axes()` removes unused axes. Main-view navigation forwards normalized Y-range changes to additional views.
 
-Within a page, X-range changes are synchronized across plots. Cursor positions also belong to the page. Guard flags prevent signal callbacks from recursively updating one another. Each plot converts physical cursor coordinates to/from logarithmic scene coordinates through `x_to_scene()` and `x_from_scene()`. Cursors and readouts must continue to use physical seconds or Hz, even when the scene uses log10 coordinates.
+Within a page, X-range changes are synchronized across plots. With Diff cursors enabled, plain left clicks inside a plot alternate A/B placement. Scene-click events are distinct from drag events, preserving cursor dragging, pan and rectangle zoom. Placement converts through the main ViewBox and `x_from_scene()` so log frequency coordinates remain physical Hz. Cursor positions also belong to the page. Guard flags prevent signal callbacks from recursively updating one another. Each plot converts physical cursor coordinates to/from logarithmic scene coordinates through `x_to_scene()` and `x_from_scene()`. Cursors and readouts must continue to use physical seconds or Hz, even when the scene uses log10 coordinates.
 
-pyqtgraph may downsample and clip curves for rendering. Numerical functions receive the original or transformed arrays, never the rendered pixels or display-decimated curve. Log settings affect display, not the underlying amplitudes; logarithmic Y is not a dB conversion.
+Time and FFT plots may downsample and clip curves for rendering. Spectrum pages disable automatic downsampling to preserve nonuniform receiver frequency sweeps. Numerical functions receive the original or transformed arrays, never the rendered pixels or display-decimated curve. Log settings affect display, not the underlying amplitudes; logarithmic Y is not a dB conversion.
 
 ## FFT, statistics and export
 
-`analysis.fft()` requires at least four finite real samples with positive, approximately uniform spacing. It removes the mean, applies a Hann window and returns a one-sided peak-amplitude spectrum. Window-sum normalization and endpoint adjustments prevent doubling the DC and even-length Nyquist bins. This is not a power spectral density.
+`analysis.fft()` requires at least four finite real samples with strictly increasing timestamps. By default spacing must be approximately uniform. Explicit `resample=True` linearly interpolates the selected source interval to a uniform grid; `sample_rate=None` uses reciprocal median spacing, while a specified rate is in Hz. Source samples remain unchanged. Resampling rejects duplicate timestamps, invalid amplitudes and grids above 10 million samples. FFT pages persist applied resampling settings and stage recalculation before replacing displayed spectra. It removes the mean, applies a Hann window and returns a one-sided peak-amplitude spectrum. Window-sum normalization and endpoint adjustments prevent doubling the DC and even-length Nyquist bins. This is not a power spectral density.
 
 An FFT page stores its **source time interval** separately from its frequency cursor positions. `transformed_signal()` computes spectra when signals are added. `recalculate_fft()` computes and validates every requested result before replacing displayed data, so an invalid signal does not leave a partially updated set of spectra. FFT and export currently execute on the GUI thread and can block interaction for large inputs.
 
 `statistics()` operates on the selected sample interval, ignores nonfinite values and uses magnitudes for complex input. Its standard deviation uses NumPy's population convention (`ddof=0`). `cursor_values()` uses linear interpolation and returns NaN outside the recorded range; interpolation of spectra is between bins, not an estimate of extra spectral resolution.
 
 GUI **Export all** builds a new `Recording` from all loaded source signals, not only visible curves or FFT spectra. It currently uses the model's default timestamp rather than retaining a particular input file's timestamp. Python and CLI callers exporting an existing `Recording` can preserve that recording's timestamp. MAT output uses the explicit per-channel interchange layout. RAW and WVF require identical uniform axes and real data; WVF quantizes amplitudes, and RAW starts time at zero while recording the original origin in its header.
+
+## Workspace and undo persistence
+
+`WorkspaceMixin.capture_state()` shares source objects with undo snapshots and
+records serializable view state. `restore_state()` reconstructs Qt views, retains
+source IDs and disables auto-plot/history recording during restoration.
+`save_workspace()` writes a versioned ZIP archive containing JSON view state and
+non-pickled NumPy channel arrays, then replaces the destination after success.
+`open_workspace()` restores the previous state if loading fails. The
+[workspace schema](WORKSPACE_FORMAT.md) lists fields and compatibility defaults.
+
+The `reversible` wrapper captures one outermost structural action and ignores
+unchanged snapshots. History holds at most 50 actions and retains source arrays
+by reference. Removed sources can remain allocated while undo history references
+them. Cursor movement and direct mouse navigation are outside structural history.
 
 ## Boundaries and current limitations
 

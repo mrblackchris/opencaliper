@@ -2,7 +2,7 @@
 import argparse
 import json
 import sys
-from .core import load, export
+from .core import load
 from .analysis import statistics, fft
 
 
@@ -23,18 +23,24 @@ def main(argv=None):
     for name in ('stats', 'fft'):
         a = sub.add_parser(name); a.add_argument('input'); a.add_argument('--signal', type=int, default=0)
         a.add_argument('--start', type=float); a.add_argument('--stop', type=float)
-        if name == 'fft': a.add_argument('output', help='CSV output (frequency_Hz, amplitude)')
+        if name == 'fft':
+            a.add_argument('output', help='CSV output (frequency_Hz, amplitude)')
+            a.add_argument('--resample', action='store_true', help='Linearly interpolate to uniform time samples')
+            a.add_argument('--sample-rate', type=float, help='Resampling rate in Hz; default: reciprocal median interval')
     args = p.parse_args(argv)
     try:
         if args.command == 'gui':
             from .gui import run
             return run(args.files)
+        if args.command == 'convert':
+            from .converterscripts.convert import convert_file
+            print(convert_file(args.input, args.output, args.overwrite))
+            return 0
         r = load(args.input)
         if args.command == 'info':
-            print(json.dumps([dict(index=i, name=s.name, unit=s.unit, samples=len(s.time),
+            print(json.dumps([dict(index=i, name=s.name, unit=s.unit, domain=s.domain,
+                                   axis_unit="Hz" if s.domain == "frequency" else "s", samples=len(s.time),
                                    start=float(s.time[0]), stop=float(s.time[-1])) for i,s in enumerate(r.signals)], indent=2))
-        elif args.command == 'convert':
-            print(export(r, args.output, args.overwrite))
         else:
             if not 0 <= args.signal < len(r.signals):
                 raise ValueError('Signal index out of range; use info to list signals')
@@ -43,7 +49,7 @@ def main(argv=None):
                 print(json.dumps(statistics(s, args.start, args.stop), indent=2))
             else:
                 import numpy as np
-                f, a = fft(s, args.start, args.stop)
+                f, a = fft(s, args.start, args.stop, resample=args.resample, sample_rate=args.sample_rate)
                 with open(args.output, 'x') as output:
                     np.savetxt(output, np.column_stack((f,a)), delimiter=',', header='frequency_Hz,amplitude', comments='')
         return 0

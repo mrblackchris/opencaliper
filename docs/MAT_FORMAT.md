@@ -82,8 +82,19 @@ xlabel('Time (s)'); ylabel(m.Channel1_unit);
 
 ## OpenCaliper MAT exports
 
-MAT export uses an additional interchange layout that preserves arbitrary channel names and independent time vectors. Each channel has `signal_0_name`, `signal_0_unit`, `signal_0_time` (seconds), and `signal_0_values`; subsequent channels use indices 1, 2, and so on. `recording_timestamp` stores an ISO timestamp. OpenCaliper can read these files back. This export layout differs from the shared-time-base acquisition convention demonstrated by `examples/example.py`.
+MAT export uses an additional interchange layout that preserves arbitrary channel names and independent time vectors. Each channel has `signal_0_name`, `signal_0_unit`, `signal_0_time`, `signal_0_domain`, and `signal_0_values`; subsequent channels use indices 1, 2, and so on. `signal_0_domain` is `time` (default if absent, horizontal values in seconds) or `frequency` (horizontal values in Hz). `recording_timestamp` stores an ISO timestamp. OpenCaliper can read these files back. This export layout differs from the shared-time-base acquisition convention demonstrated by `examples/example.py`.
 
 ## Implementation reference
 
 The acquisition reader is `read_measurement()` in [acquisition.py](../opencaliper/acquisition.py); [core.py](../opencaliper/core.py) converts its output into the shared `Recording` and `Signal` model. The [Doxygen reference](DOXYGEN.md) documents these functions and their parameters, validation and scaling behavior. For a complete API example, see the [developer walkthrough](DEVELOPMENT.md#2-follow-a-recording-through-the-python-api).
+
+
+## ESRP receiver spectrum layout
+
+The MAT reader also recognizes `freq` with detector vectors `avg`, `pk`, and/or
+`qpk`. `freq` contains strictly increasing nonnegative frequencies (Hz by default;
+optional `freq_unit`: Hz/kHz/MHz/GHz). Available detectors must have matching
+lengths. Row and column vectors are accepted, including in v7.3 files. Optional
+`unit` or per-detector `avg_unit`, `pk_unit`, `qpk_unit` label amplitudes without
+changing them. The resulting signals have `domain="frequency"` and automatically
+open in a Spectrum tab. No FFT or amplitude conversion is applied.

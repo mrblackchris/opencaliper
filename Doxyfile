@@ -2,7 +2,7 @@
 PROJECT_NAME           = OpenCaliper
 PROJECT_BRIEF          = "Open-source data viewer and analyzer"
 OUTPUT_DIRECTORY       = docs-api
-INPUT                  = opencaliper scripts examples/example.py docs/doxygen
+INPUT                  = opencaliper scripts run_opencaliper.py examples/example.py docs/doxygen
 FILE_PATTERNS          = *.py *.dox
 RECURSIVE              = YES
 EXCLUDE_PATTERNS       = */__pycache__/*

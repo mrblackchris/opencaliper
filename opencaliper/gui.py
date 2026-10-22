@@ -13,6 +13,7 @@ from PySide6 import QtCore, QtGui, QtWidgets as Q
 import pyqtgraph as pg
 from .core import load, export, Recording, Signal
 from .analysis import statistics, fft, cursor_values
+from .converterscripts.formats import input_filter, output_filter
 from .workspace import WorkspaceMixin, reversible
 from .tools import ToolsMixin
 
@@ -158,6 +159,7 @@ class Plot(pg.PlotWidget):
         self.display_signals = {}
         self.fit_bounds = {}
         self.signal_colors = {}
+        self.signal_names = {}
         self.signal_axes = {}
         self.extra_axes = {}
         self.next_axis_id = 0
@@ -276,15 +278,19 @@ class Plot(pg.PlotWidget):
 class AnalysisPage(Q.QSplitter):
     """One analysis tab owning plots, cursor positions and navigation state.
     
-    kind selects time or fft. For FFT, fft_interval holds source seconds while
+    kind selects time, fft or imported spectrum. For FFT, fft_interval holds source seconds while
     cursor_positions holds displayed Hz. Neither state belongs to another tab."""
     def __init__(self, kind='time', fft_interval=None):
         super().__init__(QtCore.Qt.Orientation.Vertical)
         self.kind = kind
+        self.pending_signals = set()
+        self.fft_resample = False
+        self.fft_sample_rate = 0.
         self.fft_interval = tuple(fft_interval) if fft_interval is not None else (None, None)
         self.plots = []
         self.cursor_positions = [0., 1.]
         self.cursors_visible = False
+        self.next_cursor_index = 0
         self.zoom_mode = False
         self.syncing = False
         self.syncing_x = False
@@ -298,7 +304,8 @@ class AnalysisPage(Q.QSplitter):
         self.setStretchFactor(0, 1); self.setStretchFactor(1, 0)
         self.setSizes([650, 110])
         if kind == 'fft':
-            settings = Q.QWidget(); row = Q.QHBoxLayout(settings)
+            settings = Q.QWidget(); settings_layout = Q.QVBoxLayout(settings)
+            row = Q.QHBoxLayout(); settings_layout.addLayout(row)
             row.addWidget(Q.QLabel('FFT: Hann · Mean removed · Peak amplitude'))
             self.use_interval = Q.QCheckBox('Time interval')
             self.use_interval.setChecked(self.fft_interval[0] is not None)
@@ -310,13 +317,25 @@ class AnalysisPage(Q.QSplitter):
                 field.setEnabled(self.use_interval.isChecked())
                 self.use_interval.toggled.connect(field.setEnabled)
                 row.addWidget(field)
+            resampling = Q.QHBoxLayout(); settings_layout.addLayout(resampling)
+            self.resample_box = Q.QCheckBox('Resample (linear)')
+            self.resample_box.setToolTip('Interpolate to uniform time samples before FFT; source data stays unchanged.')
+            resampling.addWidget(self.resample_box)
+            self.sample_rate = Q.QDoubleSpinBox(); self.sample_rate.setDecimals(6)
+            self.sample_rate.setRange(0, 1e12); self.sample_rate.setSpecialValueText('Auto (median interval)')
+            self.sample_rate.setSuffix(' Hz'); self.sample_rate.setEnabled(False)
+            self.sample_rate.setToolTip('Auto uses the reciprocal median interval for each selected source. Interpolation adds no bandwidth and does not filter aliasing.')
+            self.resample_box.toggled.connect(self.sample_rate.setEnabled)
+            resampling.addWidget(Q.QLabel('Sample rate:'))
+            resampling.addWidget(self.sample_rate)
+            resampling.addStretch()
             self.recalculate = Q.QPushButton('Recalculate')
-            self.recalculate.setToolTip('Apply the time interval to all spectra in this tab')
-            row.addWidget(self.recalculate)
-            settings.setMaximumHeight(60)
+            self.recalculate.setToolTip('Apply the interval and resampling settings to all spectra in this tab')
+            resampling.addWidget(self.recalculate)
+            settings.setMaximumHeight(110)
             self.insertWidget(0, settings)
             self.setStretchFactor(0, 0); self.setStretchFactor(1, 1); self.setStretchFactor(2, 0)
-            self.setSizes([45, 650, 110])
+            self.setSizes([85, 650, 110])
 
 
 class Window(WorkspaceMixin, ToolsMixin, Q.QMainWindow):
@@ -337,6 +356,7 @@ class Window(WorkspaceMixin, ToolsMixin, Q.QMainWindow):
                                 ('Fit both axes', self.fit), ('FFT', self.spectrum), ('Statistics', self.stats)]:
             bar.addAction(label, callback)
         self.cursors_enabled = Q.QCheckBox('Diff cursors'); bar.addWidget(self.cursors_enabled)
+        self.cursors_enabled.setToolTip('When enabled, left-click inside a plot to place A, then B. Drag cursors to adjust.')
         self.cursors_enabled.toggled.connect(self.toggle_cursors)
         self.addToolBarBreak()
         navigation = self.addToolBar('Zoom and navigation')
@@ -393,13 +413,13 @@ class Window(WorkspaceMixin, ToolsMixin, Q.QMainWindow):
         return [p for i in range(self.tabs.count()) for p in self.tabs.widget(i).plots]
 
     def add_analysis(self, kind='time', fft_interval=None):
-        """Create and select a time or FFT page with an initial subplot."""
+        """Create a time, FFT or Spectrum page with an initial subplot."""
         self.analysis_counter += 1
         page = AnalysisPage(kind, fft_interval)
         if kind == 'fft':
             page.cursors_visible = True
             page.recalculate.clicked.connect(lambda: self.recalculate_fft(page))
-        title = f'FFT {self.analysis_counter}' if kind == 'fft' else f'Analysis {self.analysis_counter}'
+        title = 'Spectrum' if kind == 'spectrum' else (f'FFT {self.analysis_counter}' if kind == 'fft' else f'Analysis {self.analysis_counter}')
         index = self.tabs.addTab(page, title)
         self.tabs.setCurrentIndex(index)
         self.add_plot()
@@ -440,7 +460,7 @@ class Window(WorkspaceMixin, ToolsMixin, Q.QMainWindow):
         for plot in self.plots: plot.getViewBox().scaleBy((1, factor))
 
     def open_files(self):
-        paths, _ = Q.QFileDialog.getOpenFileNames(self, 'Open measurements', '', 'Measurements (*.mat *.mf4 *.MF4 *.mdf *.MDF *.bin *.wvf *.WVF *.raw *.npy);;All files (*)')
+        paths, _ = Q.QFileDialog.getOpenFileNames(self, 'Open measurements', '', input_filter())
         for path in paths: self.open_path(path)
 
     def open_path(self, path):
@@ -466,13 +486,18 @@ class Window(WorkspaceMixin, ToolsMixin, Q.QMainWindow):
             index = self.next_signal_id; self.next_signal_id += 1
             item = Q.QTreeWidgetItem([f'{s.name} [{s.unit}]'])
             item.setData(0, QtCore.Qt.ItemDataRole.UserRole, index)
-            item.setToolTip(0, f'{len(s.time):,} samples | {s.time[0]:.9g} … {s.time[-1]:.9g} s')
+            item.setToolTip(0, f'{len(s.time):,} samples | {s.time[0]:.9g} … {s.time[-1]:.9g} '+('Hz' if s.domain == 'frequency' else 's'))
             root.addChild(item)
             self.signals[index] = s; self.signal_items[index] = item; ids.append(index)
         self.files[file_id] = (root, ids)
         self.filter(self.search.text())
         self.statusBar().showMessage(f'Loaded {len(ids)} signals from {Path(recording.source).name}; expand + to browse')
         if self.list.currentItem() is None: self.list.setCurrentItem(root)
+        frequency_ids = [i for i in ids if self.signals[i].domain == 'frequency']
+        if frequency_ids and not getattr(self, '_restoring', False):
+            page = self.add_analysis('spectrum')
+            for i in frequency_ids: self.add_signal(i, page.plots[0])
+            self.fit()
 
     def activate_item(self, item, column=0):
         if item.parent() is not None:
@@ -485,6 +510,8 @@ class Window(WorkspaceMixin, ToolsMixin, Q.QMainWindow):
             entry = self.files.pop(file_id, None)
             if entry is None: continue
             root, indices = entry
+            for n in range(self.tabs.count()):
+                self.tabs.widget(n).pending_signals.difference_update(indices)
             for plot in self.all_plots(): self.remove_signals(plot, indices)
             for index in indices:
                 self.signals.pop(index, None); self.signal_items.pop(index, None)
@@ -496,9 +523,14 @@ class Window(WorkspaceMixin, ToolsMixin, Q.QMainWindow):
         """Create the active page subplot, sidebar, controls, cursors and connections."""
         page = self.workspace
         plot = Plot(); plot.workspace = page
+        plot.scene().sigMouseClicked.connect(lambda event: self.place_cursor(plot, event))
         plot.getViewBox().color_menu = lambda pos: self.plot_color_menu(plot, pos)
         plot.getViewBox().sigYRangeChanged.connect(lambda view, bounds: self.update_annotation_labels(plot, bounds))
-        if page.kind == 'fft': plot.setLabel('bottom', 'Frequency', units='Hz')
+        if page.kind in ('fft', 'spectrum'): plot.setLabel('bottom', 'Frequency', units='Hz')
+        if page.kind == 'spectrum':
+            # Receiver sweeps may have nonuniform spacing; automatic decimation
+            # assumes regular X samples and can distort these spectra.
+            plot.setDownsampling(ds=1, auto=False)
         plot.getViewBox().setMouseMode(pg.ViewBox.RectMode if page.zoom_mode else pg.ViewBox.PanMode)
         panel = Q.QSplitter()
         plot.panel = panel
@@ -550,6 +582,8 @@ class Window(WorkspaceMixin, ToolsMixin, Q.QMainWindow):
             with QtCore.QSignalBlocker(plot.log_x_box), QtCore.QSignalBlocker(plot.log_y_box):
                 plot.log_x_box.setChecked(True); plot.log_y_box.setChecked(True)
             self.set_plot_log(plot)
+        elif page.kind == 'spectrum':
+            plot.log_x_box.setChecked(True)
 
     def set_plot_log(self, plot):
         page = plot.workspace
@@ -603,6 +637,7 @@ class Window(WorkspaceMixin, ToolsMixin, Q.QMainWindow):
     def axis_menu(self, plot, indices):
         menu = Q.QMenu(self)
         menu.addAction('Change color…', lambda: self.choose_signal_color(plot, indices))
+        menu.addAction('Rename signal…', lambda: self.rename_signals(plot, indices))
         menu.addSeparator()
         menu.addAction('Plot on main Y axis', lambda: self.set_signal_axis(plot, indices, None))
         menu.addAction('Plot on separate Y axis', lambda: self.separate_signal_axes(plot, indices))
@@ -610,7 +645,7 @@ class Window(WorkspaceMixin, ToolsMixin, Q.QMainWindow):
         for target in plot.curves:
             if target in indices: continue
             key = plot.signal_axes[target]
-            same.addAction(self.signals[target].name,
+            same.addAction(self.display_name(plot, target),
                            lambda checked=False, group=key: self.set_signal_axis(plot, indices, group))
         same.setEnabled(bool(same.actions()))
         menu.addSeparator()
@@ -626,12 +661,40 @@ class Window(WorkspaceMixin, ToolsMixin, Q.QMainWindow):
         menu = Q.QMenu(self)
         colors = menu.addMenu('Change signal color')
         for index in plot.curves:
-            colors.addAction(self.signals[index].name,
+            colors.addAction(self.display_name(plot, index),
                              lambda checked=False, i=index: self.choose_signal_color(plot, [i]))
         colors.setEnabled(bool(plot.curves))
+        names = menu.addMenu('Rename signal')
+        for index in plot.curves:
+            names.addAction(self.display_name(plot, index), lambda checked=False, i=index: self.rename_signals(plot, [i]))
+        names.setEnabled(bool(plot.curves))
         menu.addAction('Background color…', lambda: self.choose_background_color(plot))
         menu.addAction('Clear annotations', lambda: self.clear_annotations(plot))
         return menu
+
+    def display_name(self, plot, index):
+        return plot.signal_names.get(index, self.signals[index].name)
+
+    def rename_signals(self, plot, indices):
+        """Set a plot-local display name; preserve original source names and data."""
+        for index in indices:
+            if index not in plot.curves: continue
+            name, ok = Q.QInputDialog.getText(self, 'Rename signal', 'Display name:',
+                                             text=self.display_name(plot, index))
+            if not ok: break
+            if not name.strip(): continue
+            plot.signal_names[index] = name.strip()
+            label = f'{name.strip()} [{self.signals[index].unit}]'
+            curve = plot.curves[index]; curve.opts['name'] = label
+            for sample, legend_label in plot.plotItem.legend.items:
+                if sample.item is curve: legend_label.setText(label)
+            for row in range(plot.signal_list.count()):
+                item = plot.signal_list.item(row)
+                if item.data(QtCore.Qt.ItemDataRole.UserRole) == index:
+                    source = self.signal_items[index].parent().text(0)
+                    item.setText(f'{label} — {source}')
+        self.update_axis_labels(plot)
+        self.update_readout(plot.workspace)
 
     def choose_signal_color(self, plot, indices):
         indices = [i for i in indices if i in plot.curves]
@@ -669,7 +732,7 @@ class Window(WorkspaceMixin, ToolsMixin, Q.QMainWindow):
         for key in [None, *plot.extra_axes]:
             indices = [i for i in plot.curves if plot.signal_axes[i] == key]
             units = sorted({self.signals[i].unit for i in indices if self.signals[i].unit})
-            label = ' / '.join(self.signals[i].name for i in indices) if key is not None else ('Peak amplitude' if plot.workspace.kind == 'fft' else 'Signals')
+            label = ' / '.join(self.display_name(plot, i) for i in indices) if key is not None else ('Peak amplitude' if plot.workspace.kind == 'fft' else 'Level' if plot.workspace.kind == 'spectrum' else 'Signals')
             axis = plot.getAxis('left') if key is None else plot.extra_axes[key][0]
             axis.setLabel(label if len(units) <= 1 else label+' ('+', '.join(units)+')',
                           units=units[0] if len(units) == 1 else '')
@@ -687,16 +750,21 @@ class Window(WorkspaceMixin, ToolsMixin, Q.QMainWindow):
         if index not in self.signals or index in plot.curves: return
         try: s = self.transformed_signal(index, plot.workspace)
         except ValueError as exc:
-            self.error(f'{self.signals[index].name}: {exc}')
+            if plot.workspace.kind == 'fft':
+                plot.workspace.pending_signals.add(index)
+            self.error(f'{self.signals[index].name}: {exc}' +
+                       ('\nFor a short interval, change or disable Time interval. For uneven timestamps, enable Resample (linear). Then click Recalculate.'
+                        if plot.workspace.kind == 'fft' else ''))
             return
+        plot.workspace.pending_signals.discard(index)
         plot.display_signals[index] = s
         y = np.abs(s.values) if np.iscomplexobj(s.values) else s.values
         color = plot.signal_colors.get(index, pg.intColor(index, hues=12))
-        plot.curves[index] = plot.plot(s.time, y, pen=pg.mkPen(color, width=1), name=f'{s.name} [{s.unit}]')
+        plot.curves[index] = plot.plot(s.time, y, pen=pg.mkPen(color, width=1), name=f'{self.display_name(plot, index)} [{s.unit}]')
         plot.curves[index].setCurveClickable(False, width=10)
         plot.signal_axes[index] = None
         source = self.signal_items[index]
-        item = Q.QListWidgetItem(f'{source.text(0)} — {source.parent().text(0)}')
+        item = Q.QListWidgetItem(f'{self.display_name(plot, index)} [{s.unit}] — {source.parent().text(0)}')
         item.setData(QtCore.Qt.ItemDataRole.UserRole, index)
         item.setForeground(color)
         plot.signal_list.addItem(item)
@@ -732,9 +800,25 @@ class Window(WorkspaceMixin, ToolsMixin, Q.QMainWindow):
 
     def toggle_cursors(self, checked):
         self.workspace.cursors_visible = checked
+        if checked: self.workspace.next_cursor_index = 0
         for p in self.plots:
             for i,c in enumerate(p.cursors): c.setVisible(checked and bool(np.isfinite(p.x_to_scene(self.cursor_positions[i]))))
         self.update_readout()
+
+    def place_cursor(self, plot, event):
+        """Alternate A/B on plain left clicks; drags and context menus stay intact."""
+        page = plot.workspace
+        if (not page.cursors_visible or event.button() != QtCore.Qt.MouseButton.LeftButton
+                or event.double() or event.modifiers() != QtCore.Qt.KeyboardModifier.NoModifier):
+            return
+        view = plot.getViewBox()
+        if not view.sceneBoundingRect().contains(event.scenePos()): return
+        value = plot.x_from_scene(view.mapSceneToView(event.scenePos()).x())
+        if not np.isfinite(value): return
+        index = page.next_cursor_index
+        self.move_cursor(index, value, page)
+        page.next_cursor_index = 1-index
+        self.statusBar().showMessage(f'Cursor {"AB"[index]} placed. Next left-click places {"AB"[1-index]}.')
 
     def move_cursor(self, index, value, page=None):
         """Synchronize a physical cursor coordinate across one page with recursion guards."""
@@ -752,19 +836,22 @@ class Window(WorkspaceMixin, ToolsMixin, Q.QMainWindow):
         page = page or self.workspace
         if page is None: return
         if not page.cursors_visible:
-            page.readout.setPlainText('Enable Diff cursors to measure Δf and amplitude differences.' if page.kind == 'fft' else 'Enable Diff cursors to measure Δt, 1/Δt and per-signal ΔY. FFT and statistics use the full record while cursors are disabled.')
+            page.readout.setPlainText('Enable Diff cursors to measure Δf and amplitude differences.' if page.kind in ('fft', 'spectrum') else 'Enable Diff cursors to measure Δt, 1/Δt and per-signal ΔY. FFT and statistics use the full record while cursors are disabled.')
             return
         a,b = page.cursor_positions; dt = b-a
-        if page.kind == 'fft':
-            rows = [f'A = {a:.10g} Hz    B = {b:.10g} Hz    Δf = {dt:.10g} Hz    Amplitudes: linear interpolation between FFT bins']
+        if page.kind in ('fft', 'spectrum'):
+            rows = [f'A = {a:.10g} Hz    B = {b:.10g} Hz    Δf = {dt:.10g} Hz    Amplitudes: linear interpolation between frequency samples']
         else:
             rows = [f'A = {a:.10g} s    B = {b:.10g} s    Δt = {dt:.10g} s    1/|Δt| = {1/abs(dt):.10g} Hz' if dt else f'A = B = {a:.10g} s; Δt = 0; frequency undefined']
-        for index in dict.fromkeys(i for p in page.plots for i in p.curves):
-            s = next(p.display_signals[index] for p in page.plots if index in p.display_signals)
-            if np.iscomplexobj(s.values): continue
-            v = cursor_values(s,a,b)
-            delta_label = 'Δamplitude' if page.kind == 'fft' else 'ΔY'
-            rows.append(f'{s.name}: A {v["a"]:.8g}   B {v["b"]:.8g}   {delta_label} {v["delta"]:.8g} {s.unit}')
+        seen = set()
+        for owner in page.plots:
+            for index, s in owner.display_signals.items():
+                name = self.display_name(owner, index)
+                if (index, name) in seen or np.iscomplexobj(s.values): continue
+                seen.add((index, name))
+                v = cursor_values(s,a,b)
+                delta_label = 'Δamplitude' if page.kind in ('fft', 'spectrum') else 'ΔY'
+                rows.append(f'{name}: A {v["a"]:.8g}   B {v["b"]:.8g}   {delta_label} {v["delta"]:.8g} {s.unit}')
         page.readout.setPlainText('\n'.join(rows))
 
     def selected(self):
@@ -777,7 +864,7 @@ class Window(WorkspaceMixin, ToolsMixin, Q.QMainWindow):
     def stats(self):
         try:
             s = self.selected()
-            if self.workspace.kind == 'fft':
+            if self.workspace.kind in ('fft', 'spectrum'):
                 index = self.list.currentItem().data(0, QtCore.Qt.ItemDataRole.UserRole)
                 s = self.transformed_signal(index, self.workspace)
             values = statistics(s, *self.interval())
@@ -787,48 +874,74 @@ class Window(WorkspaceMixin, ToolsMixin, Q.QMainWindow):
     def spectrum(self):
         item = self.list.currentItem()
         selected = item.data(0, QtCore.Qt.ItemDataRole.UserRole) if item and item.parent() else None
-        interval = self.workspace.fft_interval if self.workspace.kind == 'fft' else self.interval()
+        if (self.workspace.kind == 'spectrum' and selected is None) or (selected is not None and self.signals[selected].domain == 'frequency'):
+            self.statusBar().showMessage('This is already a spectrum; no FFT is required.')
+            return self.workspace
+        interval = (self.workspace.fft_interval if self.workspace.kind == 'fft' else
+                    self.interval() if self.workspace.kind == 'time' else (None, None))
+        resample = self.workspace.fft_resample
+        rate = self.workspace.fft_sample_rate
         page = self.add_analysis('fft', interval)
+        page.fft_resample = resample; page.fft_sample_rate = rate
+        page.resample_box.setChecked(resample); page.sample_rate.setValue(rate)
         if selected is not None: self.add_signal(selected, page.plots[0])
         self.statusBar().showMessage('FFT analysis: drag signals into a plot; cursors measure frequency and peak amplitude.')
         return page
 
-    def transformed_signal(self, index, page, interval=None):
+    def transformed_signal(self, index, page, interval=None, resample=None, sample_rate=None):
         """Return source samples for time pages or calculate a spectrum for FFT pages.
         
         @param index Source ID in the shared signal registry.
         @param page AnalysisPage determining the horizontal domain.
         @param interval Optional source-time interval overriding the FFT page bounds.
+        @param resample Optional override of the page's applied linear-resampling flag.
+        @param sample_rate Optional Hz override; zero selects reciprocal median spacing.
         @return Source Signal, or a new Signal whose time array holds frequency in Hz.
         
         The source arrays are unchanged. Frequency cursors are not FFT input bounds."""
         source = self.signals[index]
-        if page.kind != 'fft': return source
-        f, amplitude = fft(source, *(page.fft_interval if interval is None else interval))
-        return Signal(source.name, f, amplitude, source.unit)
+        if page.kind == 'spectrum':
+            if source.domain != 'frequency': raise ValueError('Use FFT to transform a time-domain channel before plotting a spectrum')
+            return source
+        if page.kind == 'time':
+            if source.domain != 'time': raise ValueError('This channel belongs in a Spectrum tab')
+            return source
+        enabled = page.fft_resample if resample is None else resample
+        rate = page.fft_sample_rate if sample_rate is None else sample_rate
+        f, amplitude = fft(source, *(page.fft_interval if interval is None else interval),
+                           resample=enabled, sample_rate=(rate or None) if enabled else None)
+        return Signal(source.name, f, amplitude, source.unit, domain='frequency')
 
     def recalculate_fft(self, page):
         """Validate all requested spectra before replacing any displayed FFT arrays."""
         interval = tuple(sorted((page.start_time.value(), page.stop_time.value()))) if page.use_interval.isChecked() else (None, None)
-        indices = {i for plot in page.plots for i in plot.curves}
+        resample = page.resample_box.isChecked()
+        rate = page.sample_rate.value()
+        indices = {i for plot in page.plots for i in plot.curves} | page.pending_signals
         try:
             # Validate every spectrum before replacing any displayed data.
-            calculated = {i: self.transformed_signal(i, page, interval) for i in indices}
+            calculated = {}
+            for index in indices:
+                calculated[index] = self.transformed_signal(index, page, interval, resample=resample, sample_rate=rate)
         except ValueError as exc:
-            self.error(str(exc))
+            self.error(f'{self.signals[index].name}: {exc}')
             return
         page.fft_interval = interval
+        page.fft_resample = resample; page.fft_sample_rate = rate
         for plot in page.plots:
             for index, curve in plot.curves.items():
                 s = calculated[index]
                 plot.display_signals[index] = s
                 curve.setData(s.time, s.values)
             self.fit_plot(plot)
+        if page.pending_signals and page.plots:
+            for index in list(page.pending_signals):
+                self.add_signal(index, page.plots[0])
         self.update_readout(page)
 
     def save(self):
         """Export all loaded source channels, independent of plot visibility or FFT display."""
-        path,_ = Q.QFileDialog.getSaveFileName(self, 'Export all loaded signals', '', 'OpenCaliper MAT (*.mat);;MDF 4 (*.mf4);;MDF 3 (*.mdf);;LTspice RAW (*.raw);;Yokogawa WVF (*.wvf)')
+        path,_ = Q.QFileDialog.getSaveFileName(self, 'Export all loaded signals', '', output_filter())
         if path:
             try:
                 export(Recording(list(self.signals.values())),path,overwrite=True)
@@ -913,7 +1026,7 @@ class Window(WorkspaceMixin, ToolsMixin, Q.QMainWindow):
 # duplicating recordings. Navigation stays independent of structural undo.
 for _method in ('loaded', 'remove_files', 'add_analysis', 'close_analysis', 'rename_analysis',
                 'add_plot', 'remove_plot', 'add_signal', 'remove_signals', 'clear_plots',
-                'choose_signal_color', 'choose_background_color', 'set_signal_axis',
+                'rename_signals', 'choose_signal_color', 'choose_background_color', 'set_signal_axis',
                 'separate_signal_axes', 'set_plot_log', 'recalculate_fft',
                 'math_dialog', 'filter_dialog', 'align_dialog', 'annotate_dialog',
                 'event_dialog', 'clear_annotations', 'zoom_by', 'fit', 'set_zoom_mode'):

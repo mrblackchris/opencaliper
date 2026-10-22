@@ -12,23 +12,31 @@ from .core import Signal, Recording
 
 
 class WorkspaceMixin:
+    """Persist portable channel/view snapshots and provide structural undo/redo.
+
+    The versioned JSON/NPY archive contract is documented in docs/WORKSPACE_FORMAT.md.
+    Snapshots share source arrays; widgets are rebuilt only on restoration.
+    """
     def capture_state(self):
+        """Capture source references and copied serializable view state on the GUI thread."""
         pages = []
         for n in range(self.tabs.count()):
             page = self.tabs.widget(n)
             plots = []
             for p in page.plots:
-                plots.append(dict(ids=list(p.curves), colors={i: pg.mkPen(c.opts['pen']).color().name() for i,c in p.curves.items()},
+                plots.append(dict(names={i:name for i,name in p.signal_names.items() if i in p.curves}, ids=list(p.curves), colors={i: pg.mkPen(c.opts['pen']).color().name() for i,c in p.curves.items()},
                                   axes=dict(p.signal_axes), ranges={k: p.axis_view(k).viewRange()[1][:] for k in [None,*p.extra_axes]},
                                   x=p.physical_x_range(), log=[p.log_x,p.log_y], background=p.backgroundBrush().color().name(),
                                   annotations=list(getattr(p, 'annotations', [])), sizes=p.panel.sizes()))
             pages.append(dict(title=self.tabs.tabText(n), kind=page.kind, interval=page.fft_interval,
+                              pending=list(page.pending_signals), resample=page.fft_resample, sample_rate=page.fft_sample_rate,
                               cursors=list(page.cursor_positions), visible=page.cursors_visible, zoom=page.zoom_mode,
                               sizes=page.plot_splitter.sizes(), plots=plots))
         return dict(signals=dict(self.signals), files=[(r.text(0), list(ids)) for r,ids in self.files.values()],
                     pages=pages, current=self.tabs.currentIndex())
 
     def restore_state(self, state):
+        """Rebuild views from a snapshot while suppressing history and spectrum auto-plot."""
         self._restoring = True
         self.tabs.blockSignals(True)
         try:
@@ -56,11 +64,17 @@ class WorkspaceMixin:
                 page = self.add_analysis(saved['kind'], saved['interval'])
                 self.tabs.setTabText(self.tabs.currentIndex(), saved['title'])
                 page.zoom_mode = saved['zoom']
+                page.fft_resample = saved.get('resample', False)
+                page.fft_sample_rate = saved.get('sample_rate', 0.)
+                if page.kind == 'fft':
+                    page.resample_box.setChecked(page.fft_resample)
+                    page.sample_rate.setValue(page.fft_sample_rate)
                 for p in list(page.plots): self.remove_plot(p)
                 for spec in saved['plots']:
                     self.add_plot(); p = page.plots[-1]
                     p.setBackground(spec['background'])
                     p.log_x_box.setChecked(spec['log'][0]); p.log_y_box.setChecked(spec['log'][1])
+                    p.signal_names = {remap[i]:name for i,name in spec.get('names', {}).items()}
                     for old in spec['ids']:
                         i = remap[old]
                         p.signal_colors[i] = QtGui.QColor(spec['colors'][old])
@@ -76,6 +90,7 @@ class WorkspaceMixin:
                     for key,bounds in spec['ranges'].items():
                         p.axis_view(None if key is None else groups[key]).setYRange(*bounds,padding=0)
                     p.panel.setSizes(spec['sizes'])
+                page.pending_signals = {remap[i] for i in saved.get('pending', [])}
                 page.plot_splitter.setSizes(saved['sizes'])
                 page.cursors_visible = saved['visible']
                 for j,value in enumerate(saved['cursors']): self.move_cursor(j,value,page)
@@ -105,6 +120,11 @@ class WorkspaceMixin:
         self._undo.append(self.capture_state()); self.restore_state(self._redo.pop()); self.update_history_actions()
 
     def save_workspace(self, path=None):
+        """Write embedded source arrays and applied view state; prompt if path is absent.
+
+        Uses version 1 ZIP/JSON/NPY and replaces the destination after successful
+        serialization. Refuses active imports; errors are shown through the GUI.
+        """
         if self.workers:
             self.error('Wait for imports to finish before saving a workspace'); return
         if not path: path,_ = Q.QFileDialog.getSaveFileName(self,'Save workspace','','OpenCaliper workspace (*.ocw)')
@@ -113,10 +133,10 @@ class WorkspaceMixin:
         # JSON represents ID/axis mappings as pairs to preserve integer and None keys.
         metadata = {k:v for k,v in state.items() if k != 'signals'}
         metadata['version'] = 1
-        metadata['channels'] = {i:dict(name=s.name,unit=s.unit) for i,s in state['signals'].items()}
+        metadata['channels'] = {i:dict(name=s.name,unit=s.unit,domain=s.domain) for i,s in state['signals'].items()}
         for page in metadata['pages']:
             for p in page['plots']:
-                for key in ('colors','axes','ranges'): p[key] = list(p[key].items())
+                for key in ('colors','axes','ranges','names'): p[key] = list(p[key].items())
         temp = None
         try:
             with tempfile.NamedTemporaryFile(dir=Path(path).resolve().parent,delete=False) as f: temp = f.name
@@ -132,6 +152,11 @@ class WorkspaceMixin:
             if temp: Path(temp).unlink(missing_ok=True)
 
     def open_workspace(self, path=None):
+        """Load a portable archive and restore previous state on failure.
+
+        Successful replacement is undoable. Optional domain, names and FFT settings
+        have compatibility defaults. Source arrays use allow_pickle=False.
+        """
         if self.workers:
             self.error('Wait for imports to finish before opening a workspace'); return
         if not path: path,_ = Q.QFileDialog.getOpenFileName(self,'Open workspace','','OpenCaliper workspace (*.ocw)')
@@ -144,13 +169,13 @@ class WorkspaceMixin:
                 signals = {}
                 for i,info in state['channels'].items():
                     arrays = [np.load(io.BytesIO(z.read(f'{i}-{kind}.npy')),allow_pickle=False) for kind in ('time','values')]
-                    signals[int(i)] = Signal(info['name'],*arrays,info['unit'])
+                    signals[int(i)] = Signal(info['name'],*arrays,info['unit'],domain=info.get('domain', 'time'))
                 state['signals'] = signals
                 if not state['pages']: raise ValueError('Workspace has no analysis pages')
                 for page in state['pages']:
-                    if page['kind'] not in ('time','fft'): raise ValueError('Unknown analysis type')
+                    if page['kind'] not in ('time','fft','spectrum'): raise ValueError('Unknown analysis type')
                     for p in page['plots']:
-                        for key in ('colors','axes','ranges'): p[key] = dict(p[key])
+                        for key in ('colors','axes','ranges','names'): p[key] = dict(p.get(key, []))
             self.restore_state(state)
             self._undo.append(previous); self._redo.clear(); self.update_history_actions()
         except Exception as exc:

@@ -35,19 +35,22 @@ doxygen Doxyfile
 
 Check that `docs-api/warnings.log` is empty. Open `docs-api/html/index.html` and inspect the landing page, linked API/source entries and the three curated architecture drawings. Check that changes to behavior and ownership are reflected in the user guide, architecture guide and API docstrings.
 
-The source archive should include `Doxyfile`, the Markdown guides and `docs/doxygen/*.dox`, so readers can regenerate the reference. It should exclude generated `docs-api/` content and `measFiles/`; the bundled `examples/example.mat` is the public synthetic exception to measurement-file exclusions. A wheel carries installable application code and notices; use the repository or source archive for the complete guides and documentation build inputs.
+The source archive should include `Doxyfile`, the Markdown guides and `docs/doxygen/*.dox`, so readers can regenerate the reference. It should exclude generated `docs-api/` content and `measFiles/`; the bundled `examples/example.mat` is the public synthetic exception to measurement-file exclusions. A wheel carries installable application code, notices and the converter guide; use the repository or source archive for the complete guides and documentation build inputs.
 
 The separate documentation workflow uploads generated HTML as `opencaliper-api-reference`. Download and extract the artifact and open its `index.html` to review it. It does not publish a website. If distributing an HTML archive separately, preserve the complete generated directory so stylesheets, diagrams and source links continue to work.
 
 ## GitHub repository
 
-Suggested repository name: `OpenCaliper`.
+The repository is [mrblackchris/opencaliper](https://github.com/mrblackchris/opencaliper).
+The application and documentation workflows run on pushes and pull requests.
+They build package/reference artifacts; they do not publish a package release or
+GitHub Pages site. Use [the README](../README.md) and [documentation index](README.md)
+as the entry points for users and contributors.
 
-Suggested description: **Open-source data viewer and analyzer for recorded signals, FFT spectra, cursor measurements and file conversion.**
-
-Suggested topics: `python`, `data-viewer`, `signal-analysis`, `waveform`, `fft`, `measurement`, `pyside6`.
-
-When creating the repository, use the existing GPL license file rather than adding a conflicting license. Enable issues and, if you can maintain it, private vulnerability reporting in the repository settings. Do not claim vendor endorsement or universal compatibility with a file extension.
+Before publishing a commit, run tests, build packages and documentation, review
+`git diff --cached --stat`, and verify that generated measurements/workspaces and
+build caches are absent from the staged file list. Keep all supported launchers,
+format adapters, regression tests and the public synthetic example.
 
 Update the version in `pyproject.toml` and the release notes in `CHANGELOG.md` before tagging a release. Use the README as the feature description and document known limits. Do not make measurement-accuracy or safety guarantees that have not been validated.
 

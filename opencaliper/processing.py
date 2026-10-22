@@ -8,6 +8,13 @@ from .core import Signal
 
 
 def uniform(signal):
+    """Validate a finite real time trace and return its sampling rate in Hz.
+
+    Requires at least four samples with positive, approximately uniform spacing.
+    Does not resample, copy or mutate source arrays. Frequency sources are rejected.
+    """
+    if signal.domain != "time":
+        raise ValueError("This operation requires time-domain samples, not an existing spectrum")
     t, y = signal.time, signal.values
     if len(t) < 4 or np.iscomplexobj(y) or not np.isfinite(y).all():
         raise ValueError('At least four finite real samples are required')
@@ -20,7 +27,16 @@ def uniform(signal):
 def expression(text, signals, name='Math', unit=''):
     """Evaluate arithmetic and approved unary functions; never execute Python code.
 
-    Channels must share the exact time axis. Units are supplied by the user.
+    @param text Arithmetic expression using channel aliases and approved functions.
+    @param signals Mapping of aliases to Signal objects with the same axis/domain.
+    @param name Output channel name.
+    @param unit Caller-supplied output unit; no automatic unit algebra is performed.
+    @return New Signal retaining the common horizontal domain and axis.
+    @exception ValueError Unsupported syntax, axis/domain mismatch or invalid calculus.
+
+    Supports +, -, *, /, unary signs, abs/sqrt/sin/cos, differentiate and integrate.
+    Calculus is time-only; integration uses cumulative trapezoids starting at zero.
+    Source samples remain unchanged. Python code, attributes and indexing are rejected.
     """
     tree = ast.parse(text, mode='eval')
     if sum(1 for _ in ast.walk(tree)) > 100:
@@ -28,6 +44,8 @@ def expression(text, signals, name='Math', unit=''):
     used = [signals[n.id] for n in ast.walk(tree) if isinstance(n, ast.Name) and n.id in signals]
     if not used:
         raise ValueError('Expression must reference a channel')
+    if any(s.domain != used[0].domain for s in used):
+        raise ValueError("Cannot mix time-domain and frequency-domain channels")
     t = used[0].time
     if any(not np.array_equal(t, s.time) for s in used):
         raise ValueError('Channels must have identical time axes; align/resample first')
@@ -45,16 +63,30 @@ def expression(text, signals, name='Math', unit=''):
         if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.UAdd, ast.USub)):
             return visit(node.operand) * (-1 if isinstance(node.op, ast.USub) else 1)
         if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id in functions and len(node.args) == 1 and not node.keywords:
+            if node.func.id in ('differentiate', 'integrate') and used[0].domain != 'time':
+                raise ValueError('Time calculus requires a time-domain channel')
             if node.func.id in ('differentiate', 'integrate') and np.any(np.diff(t) <= 0):
                 raise ValueError('Calculus requires strictly increasing timestamps')
             return functions[node.func.id](visit(node.args[0]))
         raise ValueError('Use channels, numbers, + - * / and abs/sqrt/sin/cos/differentiate/integrate only')
     with np.errstate(all='raise'):
         y = np.broadcast_to(visit(tree), t.shape).copy()
-    return Signal(name, t, y, unit)
+    return Signal(name, t, y, unit, domain=used[0].domain)
 
 
 def filtered(source, kind, frequency, order=4, quality=30):
+    """Create a zero-phase filtered copy of uniformly sampled time data.
+
+    @param source At least four finite real samples with uniform timestamps.
+    @param kind lowpass, highpass or notch.
+    @param frequency Cutoff/notch in Hz, strictly below Nyquist.
+    @param order Butterworth order for lowpass/highpass.
+    @param quality Q factor for notch width.
+    @return New Signal with original timestamps/unit and filtered values.
+    @exception ValueError Unsupported kind, invalid cutoff or insufficient padding.
+
+    Uses forward/backward filtering; inspect edge transients when interpreting data.
+    """
     fs = uniform(source)
     if not 0 < frequency < fs/2:
         raise ValueError(f'Frequency must be between 0 and Nyquist ({fs/2:g} Hz)')
@@ -69,7 +101,13 @@ def filtered(source, kind, frequency, order=4, quality=30):
 
 
 def aligned(source, reference):
-    """Shift source timestamps to maximize demeaned cross-correlation on overlap."""
+    """Shift source timestamps to maximize demeaned cross-correlation on overlap.
+
+    Both inputs need matching uniform sample rates, finite real amplitudes and at
+    least four overlapping samples. Constant signals are rejected. A positive
+    estimated lag shifts source later. Values and units are retained; source arrays
+    are not changed. Periodic signals can have ambiguous correlation peaks.
+    """
     fs = uniform(source)
     if not np.isclose(fs, uniform(reference), rtol=1e-4):
         raise ValueError('Cross-correlation requires matching sample rates')
@@ -87,7 +125,19 @@ def aligned(source, reference):
 
 
 def events(source, kind, threshold, distance=1):
-    """Return event timestamps for rising/falling crossings, peaks, pulses or outliers."""
+    """Return event timestamps in seconds from finite real time-domain samples.
+
+    @param source Channel to inspect; uniform spacing is not required.
+    @param kind rising, falling, peaks, pulses or outliers.
+    @param threshold Amplitude level, or positive population-std multiple for outliers.
+    @param distance Minimum separation in samples for peaks.
+    @return NumPy vector of event times; crossings are linearly interpolated.
+
+    Pulses return both edge directions. Outliers are distances from the mean.
+    This API has no marker-count limit; the GUI limits visualized events separately.
+    """
+    if source.domain != "time":
+        raise ValueError("Event detection requires a time-domain channel")
     y, t = source.values, source.time
     if np.iscomplexobj(y) or not np.isfinite(y).all(): raise ValueError('Finite real samples required')
     if kind in ('rising', 'falling', 'pulses'):
@@ -103,6 +153,16 @@ def events(source, kind, threshold, distance=1):
 
 
 def spectrogram(source, segment=256, overlap=0.5):
+    """Compute time/frequency PSD from uniform finite real time-domain samples.
+
+    @param source Original channel; samples are never modified.
+    @param segment Samples per Hann segment; at least four, fitting the recording.
+    @param overlap Fraction in [0, 1); converted to an integer sample count.
+    @return Segment times (seconds), frequency bins (Hz), PSD dB matrix (frequency rows).
+    @exception ValueError Nonuniform/invalid source or invalid segment/overlap.
+
+    Each segment is demeaned. PSD is in dB relative to one squared source unit/Hz.
+    """
     fs = uniform(source)
     if segment < 4 or segment > len(source.time) or not 0 <= overlap < 1:
         raise ValueError('Segment must fit the recording; overlap must be in [0, 1)')

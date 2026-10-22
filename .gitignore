@@ -18,6 +18,9 @@ dist/
 *.h5
 *.hdf5
 *.csv
+*.npy
+*.npz
+*.ocw
 *.log
 
 # Machine configuration and secrets
