@@ -51,7 +51,7 @@ The explorer is shared by all analysis tabs. Its filter searches signal entries.
 
 Use the mouse wheel to zoom. Select **Pan** to move the view by dragging, or **Rectangle zoom** to select an area. **Zoom in**, **Zoom out** and **Fit both axes** provide toolbar alternatives. Plots in a tab synchronize their horizontal ranges.
 
-**Add plot** creates another subplot in the current tab. Drag the dividers to change plot heights or sidebar widths. **New analysis** creates an independent time-domain tab. Double-click a tab label to rename it. The explorer stays available when switching tabs.
+**Add plot** creates another subplot in the current tab. Drag the dividers to change plot heights or sidebar widths. **New Time Analysis** creates an independent time-domain tab. **New Spectrum Analysis** creates an empty frequency-domain tab accepting both time channels (calculated FFT) and receiver channels (measured spectra). Double-click a tab label to rename it. The explorer stays available when switching tabs.
 
 Right-click a signal in a plot's sidebar to change its color, rename it locally to that plot, or assign its Y axis. Signals may use the main axis, share an additional axis, or use separate axes. Axis assignment changes display scaling, not the stored values or units. Right-click empty plot space for additional color options.
 
@@ -65,13 +65,13 @@ Select a channel and click **Statistics** for minimum, maximum, peak-to-peak, me
 
 ## Analyze a spectrum
 
-Select `Channel1` and click **FFT**. A frequency-domain tab opens with the selected signal. Drag additional source channels into its plots to calculate more spectra. FFT requires at least four finite real samples. For irregular acquisition times, explicitly enable **Resample (linear)** and select Auto or a sample rate in Hz before clicking **Recalculate**; otherwise timestamps must be uniformly spaced.
+Select `Channel1` and click **FFT**. A general-purpose Spectrum tab opens with the selected signal. You can also start with **New Spectrum Analysis**, then drag in time channels for FFT or receiver channels for direct plotting. Drag additional source channels into its plots to calculate more spectra. FFT requires at least four finite real samples. For irregular acquisition times, explicitly enable **Resample (linear)** and select Auto or a sample rate in Hz before clicking **Recalculate**; otherwise timestamps must be uniformly spaced.
 
 The calculation removes the mean and applies a Hann window. The vertical axis shows one-sided peak amplitude in the source unit. It is neither RMS amplitude nor power spectral density. The example's first channel has a 10 kHz sine component; the largest FFT bin will be near that frequency.
 
-**Log X** and **Log Y** are enabled by default in FFT plots. Disable them to use linear axes. Logarithmic axes hide nonpositive coordinates, including the zero-frequency bin. Log Y does not convert amplitudes to decibels.
+**Log X** is enabled and **Log Y** is disabled by default. This keeps measured negative dB levels visible when receiver data and calculated FFTs share a tab. Enable Log Y for positive linear amplitudes, or disable Log X for a linear frequency axis. Logarithmic axes hide nonpositive coordinates, including the zero-frequency bin. Log Y does not convert amplitudes to decibels.
 
-If time cursors were enabled when you opened FFT, their time interval becomes the FFT input interval. Use the FFT tab's **Time interval** fields and **Recalculate** to change it. The cursors inside the FFT plot measure **Hz and amplitude**, not source time. Changing frequency cursors does not change which time samples enter the FFT. Cursor amplitudes interpolate between FFT bins; this does not improve frequency resolution.
+If time cursors were enabled when you opened FFT, their time interval becomes the FFT input interval. Use the Spectrum tab's **Time interval** fields and **Recalculate** to change it. The cursors inside the FFT plot measure **Hz and amplitude**, not source time. Changing frequency cursors does not change which time samples enter the FFT. Cursor amplitudes interpolate between FFT bins; this does not improve frequency resolution.
 
 ## Remove views or unload data
 
@@ -107,7 +107,7 @@ The channel index is zero-based and is printed by `info`. Existing outputs are r
 
 - **No trace:** expand the file, add a channel, then fit both axes. On log axes, check that the relevant coordinates are positive.
 - **MAT layout rejected:** compare field names, array lengths, dtypes and timing metadata with [the documented convention](MAT_FORMAT.md) and `examples/example.py`.
-- **FFT rejected:** check the interval contains at least four finite real samples. For uneven timestamps, enable **Resample (linear)** in the FFT tab, choose **Auto** or a sample rate in Hz, and click **Recalculate**.
+- **FFT rejected:** check the interval contains at least four finite real samples. For uneven timestamps, enable **Resample (linear)** in the Spectrum tab, choose **Auto** or a sample rate in Hz, and click **Recalculate**.
 - **Large file feels slow:** recordings are loaded into memory. FFT and export currently run on the GUI thread and can temporarily block interaction.
 - **Window will not close during loading:** wait for current imports to finish. Import cancellation is not implemented.
 - **Need to report a bug:** include the command or GUI steps, error text, operating system and Python version. Reproduce it with synthetic data where possible. Keep private recordings in `measFiles/` and out of public reports.
@@ -194,7 +194,7 @@ After filling every row, open `large.npy` through **Open files**. The source arr
 ### FFT input errors
 
 FFT needs at least four real, finite samples on a uniform time axis. If an error
-reports too few samples, widen **Time interval** in the FFT tab, or disable it to
+reports too few samples, widen **Time interval** in the Spectrum tab, or disable it to
 use the full recording, then click **Recalculate**. A channel whose initial FFT
 failed is retained for this retry. Enabled time-domain differential cursors set
 the initial FFT interval, so closely spaced cursors can select too few samples.
@@ -204,12 +204,12 @@ viewer does not silently drop or fill missing samples, since doing so can change
 the sample spacing and spectrum. Complex-valued data requires explicit
 preprocessing before this real-valued FFT.
 
-For **uneven timestamps**, enable **Resample (linear)** in the FFT tab, leave
+For **uneven timestamps**, enable **Resample (linear)** in the Spectrum tab, leave
 **Sample rate** at **Auto (median interval)** or enter a rate in Hz, and click
 **Recalculate**. This also retries channels that failed to appear initially.
 Auto chooses the reciprocal median time interval separately for each source in
 the selected interval. A specified rate applies to every channel in the tab.
-The setting is saved in workspaces and follows duplicated FFT tabs.
+The setting is saved in workspaces and follows duplicated Spectrum tabs.
 
 Resampling linearly interpolates onto a uniform grid within the available sample
 range, without modifying source timestamps or values. It does not fill NaN/Inf
@@ -232,8 +232,8 @@ Omit `--sample-rate` for Auto. Resampling is opt-in in all interfaces.
 
 ## ESRP receiver frequency spectra
 
-Open a MAT file containing `freq` and one or more of `avg`, `pk`, `qpk`. The viewer
-adds a **Spectrum** tab and immediately plots each available detector as
+Open a MAT file containing `freq` and one or more of `avg`, `peak` (legacy `pk`), `qpk`. The viewer
+uses the current **Spectrum** tab, or creates one if needed, and immediately plots each available detector as
 **Average**, **Peak**, or **Quasipeak**. These are measured spectra, so no FFT is
 performed. The horizontal axis is frequency, and differential cursors show Hz
 and Δf. **Statistics** analyzes amplitudes over the selected frequency interval.
@@ -246,7 +246,7 @@ Uncheck Log X for a linear frequency axis or to display a zero-frequency point.
 
 By default, `freq` is interpreted in Hz. If your MATLAB script stores kHz, MHz or
 GHz, add `freq_unit = 'MHz'` (or the appropriate unit) before saving. Optional
-`unit = 'dBm'` labels all detector amplitudes; `avg_unit`, `pk_unit` and `qpk_unit`
+`unit = 'dBm'` labels all detector amplitudes; `avg_unit`, `peak_unit` and `qpk_unit`
 can override it individually. Files without unit metadata have unlabeled
 amplitude units. The viewer does not infer dBm versus dBµV or convert levels.
 
@@ -279,3 +279,32 @@ and Spectrum tabs, including logarithmic frequency axes. Existing cursor
 positions still synchronize across the tab's plots. Dragging cursors, panning,
 rectangle zooming and right-click context menus continue to work; drag gestures
 do not consume an A/B placement click.
+
+
+## Unified Spectrum analyses
+
+Use **New Time Analysis** for source waveforms and **New Spectrum Analysis** for
+frequency plots. Spectrum tabs accept both calculated FFTs and measured receiver
+spectra, including together in one subplot (use separate Y axes for unlike units).
+The **FFT** toolbar action opens a Spectrum tab and adds the selected channel.
+
+- Drag a time channel from the explorer to a Spectrum plot to compute its FFT.
+- Drag a receiver channel to plot its measured values without an FFT.
+- Drop a receiver MAT file directly onto a Spectrum plot to load and display its
+  detectors in that subplot. Time recordings dropped there are transformed too.
+- **Time interval**, **Resample (linear)**, sample rate and **Recalculate** affect
+  calculated FFTs only; measured frequency vectors and amplitudes stay unchanged.
+
+ESRP files support `peak` as the primary peak-vector name; `pk` remains a legacy
+alias. If both occur, `peak` is used once. `avg` and `qpk` remain optional. Old
+saved FFT pages restore as Spectrum analyses with their settings and curves.
+
+
+### Optional MAT date/time metadata
+
+Acquisition date/time does not determine the signal's horizontal axis. Recognized
+`recording_timestamp` or `date`/`time` fields are read when available. Missing,
+malformed, ambiguous or differently formatted metadata is ignored without an
+error or warning, using 1970-01-01 as the unknown-date default. This applies to
+acquisition, native OpenCaliper and ESRP MAT layouts. Invalid sample intervals or
+horizontal sample coordinates still need to be corrected.

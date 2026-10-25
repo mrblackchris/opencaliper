@@ -128,7 +128,9 @@ python -m unittest discover -s tests -p test_fft_gui.py -v
 | `test_raw.py` | Binary RAW precision, layout and invalid output handling |
 | `test_example.py` | Bundled/generated MAT fields, physical samples and timing |
 | `test_gui.py` | Explorer, plots, removal, navigation, colors and axis interactions |
+| `test_spectrum_analysis.py` | Unified toolbar actions, mixed FFT/receiver drops, peak aliases and legacy workspace migration |
 | `test_fft_gui.py` | FFT workspaces, intervals, log displays and frequency cursors |
+| `test_mat_timestamps.py` | Optional dates, recognized metadata and nonblocking fallback across MAT layouts |
 | `test_mdf.py` | Numeric MDF/MF4 conversions, labelled state channels and unsupported files |
 | `test_esrp.py` | ESRP vectors, v7.3 MAT, native frequency metadata, auto-plot and plot-local renaming |
 | `test_cursor_clicks.py` | A/B click placement, logarithmic axes, subplot synchronization and preserved drag/menu gestures |

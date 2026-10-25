@@ -17,7 +17,7 @@ Start with the [step-by-step user guide](docs/USER_GUIDE.md). Contributors can f
 - Shared or separate Y axes, configurable curve colors and plot backgrounds.
 - Mouse-wheel and rectangle zoom, panning, and fit-to-data controls.
 - Differential cursors for time, frequency and amplitude measurements.
-- ESRP receiver MAT spectra (`freq`, `avg`, `pk`, `qpk`) open directly in a Spectrum tab.
+- ESRP receiver MAT spectra (`freq`, `avg`, `peak`, `qpk`) open directly in a Spectrum tab.
 - Plot-local signal names configurable from the right-click menu.
 - FFT analysis tabs with drag-and-drop input, selectable source intervals, and logarithmic axes.
 - Minimum, maximum, peak-to-peak, mean, RMS and standard deviation.
@@ -144,9 +144,9 @@ The script replaces the selected output file. No measurement hardware is require
 
 ## ESRP receiver spectra
 
-MAT files with a `freq` vector and any of `avg`, `pk`, or `qpk` are recognized as frequency-domain data. Opening one immediately plots **Average**, **Peak**, and **Quasipeak** in a **Spectrum** tab, without computing an FFT. Row and column vectors and MATLAB v7.3 files are supported.
+MAT files with a `freq` vector and any of `avg`, `peak` (legacy `pk`), or `qpk` are recognized as frequency-domain data. Opening one immediately plots **Average**, **Peak**, and **Quasipeak** in a **Spectrum** tab, without computing an FFT. Row and column vectors and MATLAB v7.3 files are supported.
 
-Frequency values default to Hz. An optional `freq_unit` field can specify Hz, kHz, MHz or GHz. Amplitudes are preserved as supplied; optional `unit` or detector-specific `avg_unit`/`pk_unit`/`qpk_unit` fields provide their units. Without that metadata, amplitude units remain unspecified. Spectrum plots default to logarithmic X and linear Y so negative dB levels remain visible.
+Frequency values default to Hz. An optional `freq_unit` field can specify Hz, kHz, MHz or GHz. Amplitudes are preserved as supplied; optional `unit` or detector-specific `avg_unit`/`peak_unit`/`qpk_unit` fields provide their units. Without that metadata, amplitude units remain unspecified. Spectrum plots default to logarithmic X and linear Y so negative dB levels remain visible.
 
 Right-click a curve or its sidebar entry and choose **Rename signal…** to change its plot label. Names are local to the subplot and are retained in saved workspaces.
 
@@ -179,7 +179,7 @@ To import another file type, convert its physical samples and timing into this l
 
 1. Open a measurement or drop files into the **Variable Explorer**. Expand a file with **+** to see its channels.
 2. Drag channels into a plot. Double-clicking a channel adds it to the first plot of the active tab.
-3. Use **Add plot** for another subplot or **New analysis** for an independent time-domain tab.
+3. Use **Add plot** for another subplot or **New Time Analysis** for an independent time-domain tab.
 4. Drag plot dividers to adjust sizes. Use **Pan**, **Rectangle zoom**, the mouse wheel, or **Fit both axes** to navigate.
 5. Enable **Diff cursors** and left-click in a plot to place A, then B (alternating). Drag either cursor to adjust it. Click placement also recovers cursors outside a zoomed view. Cursor positions are shared within a tab.
 
@@ -189,11 +189,11 @@ Right-click a signal to change its color or choose a main, separate, or shared Y
 
 ### FFT and statistics
 
-**FFT** opens a frequency-domain tab. Drag signals into its plots to calculate spectra; an already selected signal is added when the tab opens. FFT uses a Hann window, removes the mean and displays one-sided peak amplitude in the original signal unit. **Log X** and **Log Y** are enabled by default. Nonpositive coordinates are hidden on logarithmic axes; the underlying samples remain available when switching back to linear display.
+**New Spectrum Analysis** opens an empty general-purpose frequency-domain tab. Drop a time signal onto it to calculate its FFT, or a measured frequency signal to plot it directly. Dropping a receiver MAT file onto a Spectrum plot adds its detector traces to that tab. **FFT** opens the same Spectrum analysis with the selected signal. Drag signals into its plots to calculate spectra; an already selected signal is added when the tab opens. FFT uses a Hann window, removes the mean and displays one-sided peak amplitude in the original signal unit. **Log X** is enabled and **Log Y** is disabled by default, so negative receiver dB levels remain visible. Nonpositive coordinates are hidden on logarithmic axes; the underlying samples remain available when switching back to linear display.
 
 If time-domain cursors are enabled when FFT opens, their interval becomes the source time interval. Otherwise, the full signal is used. Edit **Time interval** and click **Recalculate** to update all spectra in that tab. Frequency-domain cursors measure Hz, Δf and interpolated amplitudes independently of the source time interval. Logarithmic amplitude display does not convert values to decibels.
 
-**Statistics** analyzes the selected signal or spectrum, using the current tab's cursor interval when enabled. Time cursors report seconds, Δt, 1/|Δt| and interpolated signal differences. Outside the recorded range, interpolated values are unavailable and shown as NaN. Statistics ignore nonfinite samples; FFT requires at least four finite real samples. For uneven timestamps, enable **Resample (linear)** in the FFT tab, leave the sample rate at **Auto** or enter Hz, and click **Recalculate**. Source data stays unchanged; interpolation estimates a uniform grid and does not add measured bandwidth.
+**Statistics** analyzes the selected signal or spectrum, using the current tab's cursor interval when enabled. Time cursors report seconds, Δt, 1/|Δt| and interpolated signal differences. Outside the recorded range, interpolated values are unavailable and shown as NaN. Statistics ignore nonfinite samples; FFT requires at least four finite real samples. For uneven timestamps, enable **Resample (linear)** in the Spectrum tab, leave the sample rate at **Auto** or enter Hz, and click **Recalculate**. Source data stays unchanged; interpolation estimates a uniform grid and does not add measured bandwidth.
 
 ## Command line
 

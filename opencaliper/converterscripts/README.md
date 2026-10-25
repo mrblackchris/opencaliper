@@ -39,7 +39,7 @@ in its header. These conversions do not preserve every device-specific field.
 | `convert.py` | `detect_format`, `load`, `export`, `convert_file`, terminal entry point |
 | `formats.py` | Registry mapping extensions to reader/exporter modules; GUI filters |
 | `matconvert.py` | `read(path)`: acquisition and native OpenCaliper MAT |
-| `esrpconvert.py` | ESRP receiver `freq`/`avg`/`pk`/`qpk` MAT spectra; selected by `matconvert.py` from contents |
+| `esrpconvert.py` | ESRP receiver `freq`/`avg`/`peak`/`qpk` (`pk` legacy alias) MAT spectra; selected by `matconvert.py` from contents |
 | `mdfconvert.py` | `read(path)`: MDF/MF4 numeric scalar channels |
 | `wvfconvert.py` | `read(path)`: Yokogawa single-block IS2 WVF/HDR |
 | `rawconvert.py` | `read(path)`: LTspice single-plot transient RAW |
@@ -103,7 +103,7 @@ It preserves independent channel time axes and uses these top-level fields:
 
 Repeat `signal_N_*` for zero-based integer channel indices. Row and column vectors
 are accepted and flattened. Channels are loaded in numeric index order.
-`recording_timestamp` is optional on import; if absent it defaults to the epoch.
+`recording_timestamp` is optional on import; if absent or unrecognized it silently defaults to the epoch. Acquisition and receiver date/time metadata is optional too; it cannot prevent valid sample data from loading.
 Frequency-domain channels are exported only to native MAT; time-only writers reject them. ESRP MAT spectra are detected from `freq` and detector fields and routed through `esrpconvert.py`.
 The legacy `ChannelN_t1` acquisition MAT layout is also supported; see the
 [MAT guide](../../docs/MAT_FORMAT.md). Workspaces (`.ocw`) additionally store plot

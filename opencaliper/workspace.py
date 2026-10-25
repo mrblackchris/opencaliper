@@ -62,11 +62,14 @@ class WorkspaceMixin:
                 self.next_signal_id = max(self.signals, default=-1)+1
             for saved in state['pages']:
                 page = self.add_analysis(saved['kind'], saved['interval'])
-                self.tabs.setTabText(self.tabs.currentIndex(), saved['title'])
+                title = saved['title']
+                if saved['kind'] == 'fft' and title.startswith('FFT ') and title[4:].isdigit():
+                    title = 'Spectrum'
+                self.tabs.setTabText(self.tabs.currentIndex(), title)
                 page.zoom_mode = saved['zoom']
                 page.fft_resample = saved.get('resample', False)
                 page.fft_sample_rate = saved.get('sample_rate', 0.)
-                if page.kind == 'fft':
+                if page.kind == 'spectrum':
                     page.resample_box.setChecked(page.fft_resample)
                     page.sample_rate.setValue(page.fft_sample_rate)
                 for p in list(page.plots): self.remove_plot(p)

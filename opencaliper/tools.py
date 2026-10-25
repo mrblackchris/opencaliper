@@ -205,7 +205,7 @@ class ToolsMixin:
             if page.cursors_visible:
                 from .analysis import cursor_values
                 a,b = page.cursor_positions
-                axis_unit = 'Hz' if page.kind in ('fft', 'spectrum') else 's'
+                axis_unit = 'Hz' if page.kind == 'spectrum' else 's'
                 footer.append(f'A = {a:.9g} {axis_unit}   B = {b:.9g} {axis_unit}   Δ = {b-a:.9g} {axis_unit}')
                 for index, s in plot.display_signals.items():
                     if np.iscomplexobj(s.values): continue

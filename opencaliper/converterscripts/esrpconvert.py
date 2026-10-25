@@ -1,16 +1,16 @@
-"""ESRP receiver MAT spectra: freq (Hz), avg/pk/qpk detector amplitude vectors.
+"""ESRP receiver MAT spectra: freq (Hz), avg/peak/qpk (pk is a legacy peak alias) detector amplitude vectors.
 
 Values are already spectra and must never be transformed with an FFT. Optional
-unit/avg_unit/pk_unit/qpk_unit fields label amplitudes without changing values.
+unit/avg_unit/peak_unit/qpk_unit fields (pk_unit for legacy pk) label amplitudes without changing values.
 An optional freq_unit (Hz/kHz/MHz/GHz) scales frequencies to Hz; absent means Hz.
 """
 from pathlib import Path
 import numpy as np
 from ..core import Recording, Signal
-from ..acquisition import load_mat, text_value
+from ..acquisition import load_mat, text_value, timestamp
 
 
-DETECTORS = {'avg': 'Average', 'pk': 'Peak', 'qpk': 'Quasipeak'}
+DETECTORS = [(('avg',), 'Average'), (('peak', 'pk'), 'Peak'), (('qpk',), 'Quasipeak')]
 
 
 def read_data(data, path):
@@ -28,16 +28,17 @@ def read_data(data, path):
     if not np.isfinite(frequency).all() or np.any(frequency < 0) or np.any(np.diff(frequency) <= 0):
         raise ValueError('ESRP freq must contain finite, nonnegative, strictly increasing frequencies')
     signals = []
-    for key,name in DETECTORS.items():
-        if key not in data: continue
+    for aliases,name in DETECTORS:
+        key = next((key for key in aliases if key in data), None)
+        if key is None: continue
         values = vector(key)
         if len(values) != len(frequency): raise ValueError(f'ESRP {key} length does not match freq')
         amplitude_unit = data.get(key+'_unit', data.get('unit'))
         signals.append(Signal(name, frequency, values,
                               text_value(amplitude_unit) if amplitude_unit is not None else '',
                               domain='frequency'))
-    if not signals: raise ValueError('ESRP MAT needs at least one detector vector: avg, pk or qpk')
-    return Recording(signals, str(path))
+    if not signals: raise ValueError('ESRP MAT needs at least one detector vector: avg, peak (or pk) or qpk')
+    return Recording(signals, str(path), timestamp(data))
 
 
 def read(path):

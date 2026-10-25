@@ -46,7 +46,7 @@ physical = (raw.astype(float) - 2**(bits - 1)) * yinc + offset
 
 Here `bits` is 8 or 16 according to the array dtype. For new converters, writing floating-point physical values is usually simplest. Do not cast raw codes to float without first converting them to physical values. Other integer dtypes are not supported as raw ADC arrays.
 
-Dates and times are metadata, independent of the relative time vector. Missing dates/times produce a warning and an epoch timestamp. Older acquisition files may contain separator-free strings; unambiguous values are accepted, but ambiguous timestamps are rejected. Use ISO-style strings in new files.
+Dates and times are metadata, independent of the relative time vector. Date/time metadata is optional and never blocks loading. Recognized values are read; missing, malformed, ambiguous or unsupported values silently use the epoch (1970-01-01) to represent unknown acquisition time. This also applies to native `recording_timestamp` and receiver MAT files. Older acquisition files may contain separator-free strings; only unambiguous values are retained. Use ISO-style strings in new files.
 
 ## Convert your own data
 
@@ -91,10 +91,10 @@ The acquisition reader is `read_measurement()` in [acquisition.py](../opencalipe
 
 ## ESRP receiver spectrum layout
 
-The MAT reader also recognizes `freq` with detector vectors `avg`, `pk`, and/or
+The MAT reader also recognizes `freq` with detector vectors `avg`, `peak` (legacy `pk`), and/or
 `qpk`. `freq` contains strictly increasing nonnegative frequencies (Hz by default;
 optional `freq_unit`: Hz/kHz/MHz/GHz). Available detectors must have matching
 lengths. Row and column vectors are accepted, including in v7.3 files. Optional
-`unit` or per-detector `avg_unit`, `pk_unit`, `qpk_unit` label amplitudes without
+`unit` or per-detector `avg_unit`, `peak_unit`, `qpk_unit` label amplitudes without
 changing them. The resulting signals have `domain="frequency"` and automatically
 open in a Spectrum tab. No FFT or amplitude conversion is applied.

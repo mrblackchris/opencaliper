@@ -71,14 +71,26 @@ def load_mat(path):
 
 
 def timestamp(vd):
-    # saveOscilloscope entfernt Trennzeichen ohne Padding: 2024,5,3 -> 202453.
-    # Solche Strings können mehrdeutig sein; niemals ein Datum still erfinden.
-    """Parse date/time fields without silently resolving ambiguous separator-free strings."""
+    """Read optional MAT acquisition metadata; use the epoch if unrecognized.
+
+    ISO recording_timestamp takes precedence over recognized date/time pairs.
+    Missing, malformed or ambiguous metadata never blocks waveform loading and
+    emits no warning. The default means unknown, not a measured acquisition date.
+    """
+    fallback = datetime(1970, 1, 1)
+    if 'recording_timestamp' in vd:
+        try:
+            value = text_value(vd['recording_timestamp'])
+            return datetime.fromisoformat(value[:-1]+'+00:00' if value.endswith('Z') else value)
+        except (ValueError, TypeError, OverflowError, UnicodeError):
+            pass
     if 'date' not in vd or 'time' not in vd:
-        warnings.warn('Datum/Uhrzeit fehlen: 1970/01/01 00:00:00 wird verwendet.')
-        return datetime(1970, 1, 1)
-    date = text_value(vd['date'])
-    time = text_value(vd['time'])
+        return fallback
+    try:
+        date = text_value(vd['date'])
+        time = text_value(vd['time'])
+    except (ValueError, TypeError, OverflowError, UnicodeError):
+        return fallback
     dates = set()
     for fmt in ('%Y/%m/%d', '%Y-%m-%d', '%d%b%Y'):
         try:
@@ -110,8 +122,7 @@ def timestamp(vd):
                 except ValueError:
                     pass
     if len(dates) != 1 or len(times) != 1:
-        raise ValueError(f'Datum/Zeit unklar: {date!r} / {time!r}. '
-                         'DATE_OVERRIDE="YYYY-MM-DD" und TIME_OVERRIDE="HH:MM:SS" setzen.')
+        return fallback
     return datetime.combine(dates.pop(), times.pop())
 
 
@@ -149,7 +160,7 @@ def read_measurement(filename, data_mode='auto', date_override=None, time_overri
     @param time_override Optional replacement acquisition time.
     @param quantize_output If True, prepare IS2 output; if False, retain physical values.
     @return Tuple of resolved input Path and Measurement.
-    @exception ValueError Invalid timing, channel shape, ADC type, units or timestamp.
+    @exception ValueError Invalid sampling timing, channel shape, ADC type or units. Optional acquisition date/time metadata never blocks loading.
     
     Float samples are already physical. Raw uint8/uint16 samples use midscale,
     yinc and offset. The time origin is xorg minus xref times xinc. Importers should

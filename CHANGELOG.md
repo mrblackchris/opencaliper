@@ -4,6 +4,9 @@
 
 ### Viewer and analysis
 
+- Unified Spectrum analyses for both calculated FFTs and receiver spectra, with New Time Analysis/New Spectrum Analysis toolbar actions.
+- Spectrum file drops add detector traces to the target subplot; ESRP imports accept peak and legacy pk fields.
+
 - Desktop viewer with shared file/signal explorer and independent time, FFT and Spectrum tabs.
 - Resizable linked plots, shared/separate Y axes, configurable colors and logarithmic scales.
 - Plot-local signal renaming with context menus, workspace persistence and undo/redo.
@@ -15,6 +18,8 @@
 - PNG/SVG/PDF plot export with legends, units and cursor measurements.
 
 ### Files and sessions
+
+- Optional MAT date/time metadata is read when recognized and silently defaults to the epoch when missing, malformed or ambiguous.
 
 - Portable workspace archives containing source/derived channels and plot settings.
 - Structural undo/redo and memory-mapped NPY input with cached, bounded-memory fit scans.

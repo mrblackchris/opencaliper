@@ -82,8 +82,9 @@ class EsrpTests(unittest.TestCase):
             w.move_cursor(0,1e6); w.move_cursor(1,2e6)
             self.assertIn('Hz',w.readout.toPlainText()); self.assertIn('Δf',w.readout.toPlainText())
             self.assertNotIn('Δt',w.readout.toPlainText())
-            w.spectrum()
-            self.assertEqual(w.tabs.count(),2)
+            another=w.spectrum()
+            self.assertEqual(another.kind,'spectrum')
+            self.assertEqual(w.tabs.count(),3)
 
     def test_plot_rename_menu_undo_and_workspace(self):
         w = self.window(); w.loaded(load(self.path))
@@ -128,7 +129,7 @@ class EsrpTests(unittest.TestCase):
         w.move_cursor(0,1e6); w.move_cursor(1,2e6)
         w.list.setCurrentItem(w.signal_items[0])
         with patch.object(w,'error',side_effect=AssertionError): page=w.spectrum()
-        self.assertEqual(page.kind,'fft')
+        self.assertEqual(page.kind,'spectrum')
         self.assertEqual(page.fft_interval,(None,None))
         self.assertIn(0,page.plots[0].curves)
 

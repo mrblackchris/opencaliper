@@ -53,7 +53,7 @@ them to reference loaded sources. The explorer is shared by all analysis tabs.
    window -> page [label="tabs"];
    page -> plot [label="plots"];
    window -> signal [label="source ID registry"];
-   plot -> signal [label="time/spectrum: source reference\nFFT: transformed result", style=dashed];
+   plot -> signal [label="time: source reference\nspectrum: measured or FFT", style=dashed];
    window -> worker [label="retains until finished"];
  }
 @enddot
@@ -81,10 +81,11 @@ them to reference loaded sources. The explorer is shared by all analysis tabs.
 
 Import runs in worker threads. FFT, processing, workspace serialization and export
 run on the GUI thread. Most formats load into memory; NPY input keeps memory-mapped
-backing. Time/FFT plots may downsample for display; imported Spectrum pages retain
+backing. Time plots may downsample for display; imported Spectrum pages retain
 nonuniform frequency sweeps. Numerical analysis uses full source arrays.
 
-FFT pages store the source time interval separately from frequency cursors.
+Spectrum pages store the source time interval separately from frequency cursors.
+Spectrum tabs combine directly measured frequency sources and calculated FFTs.
 Explicit linear resampling supports uneven acquisition times without changing
 source arrays. Signal.domain identifies seconds versus Hz while Signal.time
 retains the horizontal axis field name. ESRP MAT spectra open without an FFT.

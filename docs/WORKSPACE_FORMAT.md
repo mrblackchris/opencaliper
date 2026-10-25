@@ -40,7 +40,7 @@ Each page contains:
 
 | Key | Meaning |
 | --- | --- |
-| `title`, `kind` | Tab label and `time`, `fft` or `spectrum` |
+| `title`, `kind` | Tab label and `time` or `spectrum`; legacy `fft` is accepted and migrated |
 | `interval` | Applied FFT input time bounds `[start, stop]`, each nullable |
 | `resample`, `sample_rate` | Applied FFT interpolation setting and Hz; `0` means Auto |
 | `pending` | Source IDs whose FFT failed, retained for retry |
@@ -90,7 +90,7 @@ recordings are ignored by Git and excluded from source packages.
 
 ## Restore, compatibility and undo
 
-Readers reject unknown version numbers or page kinds. Version 1 tolerates older
+Readers reject unknown version numbers or page kinds. Legacy `fft` kinds map to unified Spectrum pages; default `FFT N` titles migrate to Spectrum while custom titles are kept. Version 1 tolerates older
 files without `domain` (defaults to time), `names` (empty), `pending` (empty), and
 resampling settings (disabled/Auto). Old readers may not support newer page kinds
 or optional domain metadata. Preserve defaults when extending optional fields;

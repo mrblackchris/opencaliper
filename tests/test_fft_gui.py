@@ -34,7 +34,7 @@ class FftGuiTests(unittest.TestCase):
         time_page = w.workspace
         page = w.spectrum()  # A file entry, rather than a signal, is selected.
         self.assertEqual(w.tabs.count(), 2)
-        self.assertEqual(page.kind, 'fft')
+        self.assertEqual(page.kind, 'spectrum')
         self.assertFalse(page.plots[0].curves)
         self.assertIs(explorer, w.list)
         self.assertTrue(w.cursors_enabled.isChecked())
@@ -147,7 +147,8 @@ class FftGuiTests(unittest.TestCase):
         w = self.window; page = w.spectrum(); p = page.plots[0]
         w.add_signal(0,p); w.add_signal(1,p)
         self.assertTrue(p.log_x_box.isChecked())
-        self.assertTrue(p.log_y_box.isChecked())
+        self.assertFalse(p.log_y_box.isChecked())
+        p.log_y_box.setChecked(True)
         self.assertTrue(p.curves[0].opts['logMode'][0])
         self.assertTrue(p.curves[0].opts['logMode'][1])
         # Dragging an InfiniteLine supplies plot coordinates, not physical Hz.
@@ -192,6 +193,7 @@ class FftGuiTests(unittest.TestCase):
     def test_color_menu_hits_log_fft_curve_on_separate_axis(self):
         w = self.window; page = w.spectrum(); p = page.plots[0]
         w.add_signal(0,p); w.add_signal(1,p)
+        p.log_y_box.setChecked(True)
         w.separate_signal_axes(p,[1]); w.show(); self.app.processEvents()
         view = p.extra_axes[p.signal_axes[1]][1]
         spectrum = p.display_signals[1]

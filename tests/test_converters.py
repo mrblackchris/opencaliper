@@ -132,8 +132,7 @@ class ConversionTests(unittest.TestCase):
 
     def test_reject_bad_inputs(self):
         path = self.save()
-        for field, value in [('points', 4), ('xinc', 0), ('date', '2024111'),
-                             ('time', '12345'), ('Channel2_t1', np.ones((2, 3)))]:
+        for field, value in [('points', 4), ('xinc', 0), ('Channel2_t1', np.ones((2, 3)))]:
             vd = self.vd.copy()
             vd[field] = value
             with self.subTest(field=field), self.assertRaises(ValueError):
