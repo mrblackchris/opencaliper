@@ -30,6 +30,9 @@
 
 ### Startup, fixes and contributor support
 
+- Bound Qt/Shiboken below 6.12 on Python versions below 3.12 to avoid a reproduced None-reference-count abort during plot use.
+- CI reports dependency versions and lets Python matrix jobs finish independently.
+
 - Managed `.venv` launchers, existing-environment launchers and root `run_opencaliper.py`.
 - Shared GUI, command-line and Python interfaces for import, analysis and export.
 - Modal processing dialogs keep controls alive until values have been read.

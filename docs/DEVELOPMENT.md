@@ -160,3 +160,21 @@ When changing behavior, update the user guide; when changing ownership or call p
 Run `python -m build` for packaging changes and inspect the resulting archives. `MANIFEST.in` includes Markdown guides, `Doxyfile`, the `.dox` diagram/page sources, launchers and the public synthetic example in the source distribution, while excluding `measFiles/`. A wheel includes installable code and the converter adapter guide; the complete onboarding material and root launcher are in the repository/source archive. See [Releasing](RELEASING.md) for distribution checks.
 
 The separate [documentation workflow](../.github/workflows/documentation.yml) generates the reference, checks for warnings and uploads the HTML as an artifact. It does not enable GitHub Pages. Generated `docs-api/` files stay outside Git and release source archives; regenerate them from the checked-in configuration and comments.
+
+
+## Python/Qt compatibility in CI
+
+The application matrix tests Python 3.10 and 3.12 independently, with Qt offscreen
+and fatal-error diagnostics enabled. Installed versions are printed before tests.
+A failure in one matrix job does not cancel the other job.
+
+For Python versions below 3.12, package metadata constrains PySide6-Essentials to
+`>=6.6,<6.12`. A local Python 3.10 reproduction with Qt/Shiboken 6.12.0 exhausts
+`None` references during repeated plot construction/garbage collection and aborts
+with `none_dealloc: deallocating None`. Qt/Shiboken 6.11.2 avoids that failure.
+Python 3.12 continues to use the normal `>=6.6` dependency range. Shiboken's matching
+version is selected transitively by PySide6-Essentials; do not mix their versions.
+
+Reinstall with `python -m pip install -e '.[dev]'` after dependency changes. The
+managed launchers also reinstall when `pyproject.toml` changes. Do not remove the
+3.10 matrix job or suppress fatal errors to work around this compatibility issue.
