@@ -1,0 +1,64 @@
+name: Windows executable
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 35
+    env:
+      QT_QPA_PLATFORM: offscreen
+      PYTHONFAULTHANDLER: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          architecture: x64
+          cache: pip
+      - name: Install application and build tools
+        run: python -m pip install -e ".[windows-build,dev]"
+      - name: Run application tests
+        run: python -m unittest discover -s tests -v
+      - name: Build one-file GUI executable
+        run: python scripts/build_windows.py
+      - name: Verify bundled converters, GUI and logo
+        shell: pwsh
+        run: |
+          $report = Join-Path $env:RUNNER_TEMP "opencaliper-self-test.json"
+          $process = Start-Process -FilePath (Resolve-Path "dist/OpenCaliper.exe") -ArgumentList @('--self-test', "`"$report`"") -Wait -PassThru
+          if (Test-Path $report) { Get-Content $report }
+          if ($process.ExitCode -ne 0) { throw "Executable self-test failed with exit code $($process.ExitCode)" }
+          if (!(Test-Path $report)) { throw "Executable did not produce a self-test report" }
+          if ((Get-Content $report -Raw | ConvertFrom-Json).status -ne 'ok') { throw "Executable self-test report indicates failure" }
+      - name: Record checksum and dependency versions
+        shell: pwsh
+        run: |
+          $hash = (Get-FileHash dist/OpenCaliper.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  OpenCaliper.exe" | Set-Content -Encoding ascii dist/OpenCaliper.exe.sha256
+          python -m pip freeze | Set-Content -Encoding utf8 dist/build-dependencies.txt
+      - name: Upload release candidate
+        uses: actions/upload-artifact@v4
+        with:
+          name: OpenCaliper-Windows-x64
+          path: |
+            dist/OpenCaliper.exe
+            dist/OpenCaliper.exe.sha256
+            dist/build-dependencies.txt
+          if-no-files-found: error
+      - name: Upload diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: OpenCaliper-Windows-build-diagnostics
+          path: |
+            build/windows/**/warn-*.txt
+            ${{ runner.temp }}/opencaliper-self-test.json
+          if-no-files-found: ignore

@@ -1,5 +1,7 @@
 # OpenCaliper
 
+<img src="opencaliper/assets/opencaliper.png" alt="OpenCaliper logo" width="88">
+
 **An open-source data viewer and analyzer.**
 
 OpenCaliper is a Python desktop application for exploring recorded signals in the time and frequency domains. Load measurement files, arrange signals in plots, compare values with differential cursors, calculate FFT spectra and statistics, and convert supported file formats. Its Python API and command-line tools share the same import and analysis functions.
@@ -12,6 +14,8 @@ Start with the [step-by-step user guide](docs/USER_GUIDE.md). Contributors can f
 
 ## Features
 
+- Per-plot visibility checkboxes and Space-key toggles, saved with workspaces.
+- Scientific cursor readouts and a packaged window/taskbar icon.
 - File-based Variable Explorer with filtering and drag-and-drop signal selection.
 - Multiple analysis tabs and resizable subplots with linked horizontal axes.
 - Shared or separate Y axes, configurable curve colors and plot backgrounds.
@@ -27,6 +31,22 @@ Start with the [step-by-step user guide](docs/USER_GUIDE.md). Contributors can f
 - PNG, SVG and PDF plot export with cursor measurements; undo and redo.
 - Memory-mapped NumPy input for large recordings, with display downsampling.
 - GUI, command-line and Python interfaces for supported imports and conversions.
+
+## Single-file executables
+
+A standalone Windows x64 build can be produced as **`OpenCaliper.exe`**, including
+Python, the GUI, converters and logo. Recipients run one file without installing
+Python. Build it with the **Windows executable** GitHub Actions workflow, or run
+`python scripts/build_windows.py` in a Windows build environment. See the
+[Windows build guide](bundle/README.md) for installation, artifact download and
+release verification. No executable is downloaded automatically by the source
+launchers below.
+
+On Linux, build a standalone **`OpenCaliper`** executable with
+`python scripts/build_linux.py` after installing `.[linux-build]`. Run it with
+`./dist/OpenCaliper`; recipients do not need Python or a virtual environment.
+See the [Linux build guide](bundle/README.md#linux-executable) for compatibility
+and verification details.
 
 ## Easy start on Windows and Linux
 
@@ -124,6 +144,8 @@ opencaliper gui
 ```
 
 In PowerShell, activate with `.venv\Scripts\Activate.ps1`, or call `.venv\Scripts\python.exe -m opencaliper gui` directly. Command-line analysis and conversion also work without a graphical display.
+
+Linux application-menu/taskbar integration is available with `python scripts/create_desktop_launcher.py` using your selected interpreter. See [logo and launcher setup](docs/USER_GUIDE.md#application-logo-and-taskbar-icon).
 
 ## Try the example
 

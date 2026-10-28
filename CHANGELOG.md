@@ -4,6 +4,10 @@
 
 ### Viewer and analysis
 
+- Per-subplot trace visibility checkboxes and Space-key toggles, preserved in workspaces and undo history.
+- Scientific notation for cursor labels, measurements and plot-export readouts.
+- Generated OpenCaliper logo, packaged window/taskbar icon and optional Linux desktop launcher.
+
 - Unified Spectrum analyses for both calculated FFTs and receiver spectra, with New Time Analysis/New Spectrum Analysis toolbar actions.
 - Spectrum file drops add detector traces to the target subplot; ESRP imports accept peak and legacy pk fields.
 
@@ -29,6 +33,9 @@
 - MAT, MDF/MF4, Keysight BIN, Yokogawa WVF/HDR and LTspice RAW support within documented limits.
 
 ### Startup, fixes and contributor support
+
+- Single-file Windows PyInstaller build recipe, native Windows artifact workflow and packaged executable self-test.
+- Embedded project/dependency notices with Help menu access.
 
 - Bound Qt/Shiboken below 6.12 on Python versions below 3.12 to avoid a reproduced None-reference-count abort during plot use.
 - CI reports dependency versions and lets Python matrix jobs finish independently.

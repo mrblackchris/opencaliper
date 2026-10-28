@@ -24,3 +24,7 @@ global-exclude *.dll *.so *.dylib *.exe *.pem *.key .env .env.*
 include examples/example.mat
 
 recursive-include opencaliper/converterscripts *.py *.md
+
+recursive-include opencaliper/assets *.py *.png *.md
+
+recursive-include bundle *.spec *.md

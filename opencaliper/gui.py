@@ -16,6 +16,8 @@ from .analysis import statistics, fft, cursor_values
 from .converterscripts.formats import input_filter, output_filter
 from .workspace import WorkspaceMixin, reversible
 from .tools import ToolsMixin
+from .display import scientific
+from .branding import application_icon, configure_windows_identity
 
 
 class Loader(QtCore.QThread):
@@ -39,6 +41,7 @@ class SignalList(Q.QListWidget):
     """Draggable plot sidebar that emits removal requests for selected source IDs."""
     files_dropped = QtCore.Signal(list)
     remove_requested = QtCore.Signal(list)
+    toggle_requested = QtCore.Signal(list)
 
     def __init__(self, allow_files=False, removable=False):
         super().__init__()
@@ -68,6 +71,11 @@ class SignalList(Q.QListWidget):
         else: event.ignore()
 
     def keyPressEvent(self, event):
+        if self.removable and event.key() == QtCore.Qt.Key.Key_Space:
+            if not event.isAutoRepeat():
+                self.toggle_requested.emit([i.data(QtCore.Qt.ItemDataRole.UserRole) for i in self.selectedItems()])
+            event.accept()
+            return
         if self.removable and event.key() == QtCore.Qt.Key.Key_Delete:
             self.remove_requested.emit([i.data(QtCore.Qt.ItemDataRole.UserRole) for i in self.selectedItems()])
             event.accept()
@@ -161,6 +169,8 @@ class Plot(pg.PlotWidget):
         self.fit_bounds = {}
         self.signal_colors = {}
         self.signal_names = {}
+        self.hidden_signals = set()
+        self.updating_visibility = False
         self.signal_axes = {}
         self.extra_axes = {}
         self.next_axis_id = 0
@@ -353,6 +363,9 @@ class Window(WorkspaceMixin, ToolsMixin, Q.QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle('OpenCaliper'); self.resize(1450, 900)
+        icon = application_icon()
+        self.setWindowIcon(icon)
+        Q.QApplication.instance().setWindowIcon(icon)
         self.signals = {}; self.signal_items = {}; self.files = {}; self.next_signal_id = 0; self.next_file_id = 0
         self.workers = []; self.dialogs = []; self.analysis_counter = 0
         self.setAcceptDrops(True)
@@ -556,9 +569,11 @@ class Window(WorkspaceMixin, ToolsMixin, Q.QMainWindow):
         sidebar = Q.QWidget(); layout = Q.QVBoxLayout(sidebar)
         plot.title = Q.QLabel(f'Plot {len(self.plots)+1} signals')
         layout.addWidget(plot.title)
-        layout.addWidget(Q.QLabel('Select + Delete to remove'))
+        layout.addWidget(Q.QLabel('Checkbox / Space: show or hide · Delete: remove'))
         plot.signal_list = SignalList(removable=True)
         layout.addWidget(plot.signal_list)
+        plot.signal_list.toggle_requested.connect(lambda indices: self.toggle_signals(plot, indices))
+        plot.signal_list.itemChanged.connect(lambda item: self.visibility_item_changed(plot, item))
         plot.signal_list.remove_requested.connect(lambda indices: self.remove_signals(plot, indices))
         plot.signal_list.currentItemChanged.connect(lambda item, _: self.select_signal(item))
         plot.signal_list.setContextMenuPolicy(QtCore.Qt.ContextMenuPolicy.CustomContextMenu)
@@ -588,7 +603,10 @@ class Window(WorkspaceMixin, ToolsMixin, Q.QMainWindow):
             lambda view, bounds: self.sync_time_range(page, plot, bounds))
         plot.dropped.connect(lambda index: self.add_signal(index, plot))
         plot.files_dropped.connect(lambda paths: [self.open_path(path, page, plot) for path in paths])
-        plot.cursors = [pg.InfiniteLine(pos=p, angle=90, movable=True, pen=pg.mkPen(c, width=2), label=l)
+        axis_unit = 'Hz' if page.kind == 'spectrum' else 's'
+        plot.cursors = [pg.InfiniteLine(pos=p, angle=90, movable=True, pen=pg.mkPen(c, width=2),
+                        label=f'{l}: {scientific(p)} {axis_unit}',
+                        labelOpts={'position': .65 if l == 'A' else .35, 'color': c, 'fill': (17, 25, 36, 210)})
                         for p,c,l in zip(self.cursor_positions, ['#ffd166','#ef476f'], ['A','B'])]
         for i, cursor in enumerate(plot.cursors):
             plot.addItem(cursor, ignoreBounds=True); cursor.setVisible(page.cursors_visible)
@@ -672,7 +690,7 @@ class Window(WorkspaceMixin, ToolsMixin, Q.QMainWindow):
         # Hit testing uses the displayed curve, including log/separate-axis transforms.
         for index, data in reversed(list(plot.curves.items())):
             curve = data.curve
-            if curve.mouseShape().contains(curve.mapFromScene(scene_pos)):
+            if data.isVisible() and curve.mouseShape().contains(curve.mapFromScene(scene_pos)):
                 return self.axis_menu(plot, [index])
         menu = Q.QMenu(self)
         colors = menu.addMenu('Change signal color')
@@ -785,7 +803,10 @@ class Window(WorkspaceMixin, ToolsMixin, Q.QMainWindow):
         item = Q.QListWidgetItem(f'{self.display_name(plot, index)} [{s.unit}] — {source.parent().text(0)}')
         item.setData(QtCore.Qt.ItemDataRole.UserRole, index)
         item.setForeground(color)
+        item.setFlags(item.flags() | QtCore.Qt.ItemFlag.ItemIsUserCheckable)
+        item.setCheckState(QtCore.Qt.CheckState.Checked)
         plot.signal_list.addItem(item)
+        plot.curves[index].visibleChanged.connect(lambda: self.curve_visibility_changed(plot, index))
         self.update_axis_labels(plot)
         if len(plot.curves) == 1:
             if plot.workspace.kind == 'spectrum' and self.signals[index].domain == 'time':
@@ -797,6 +818,42 @@ class Window(WorkspaceMixin, ToolsMixin, Q.QMainWindow):
         self.fit_plot(plot)
         self.update_readout(plot.workspace)
 
+    def visibility_item_changed(self, plot, item):
+        index = item.data(QtCore.Qt.ItemDataRole.UserRole)
+        visible = item.checkState() == QtCore.Qt.CheckState.Checked
+        if not plot.updating_visibility and index in plot.curves and visible != (index not in plot.hidden_signals):
+            self.set_signal_visibility(plot, [index], visible)
+
+    def curve_visibility_changed(self, plot, index):
+        if not plot.updating_visibility and index in plot.curves:
+            visible = plot.curves[index].isVisible()
+            if visible != (index not in plot.hidden_signals):
+                self.set_signal_visibility(plot, [index], visible)
+
+    def set_signal_visibility(self, plot, indices, visible):
+        """Hide/show curves without unloading data; synchronize checkboxes and legend."""
+        plot.updating_visibility = True
+        try:
+            for index in indices:
+                if index not in plot.curves: continue
+                if visible: plot.hidden_signals.discard(index)
+                else: plot.hidden_signals.add(index)
+                plot.curves[index].setVisible(visible)
+            for row in range(plot.signal_list.count()):
+                item = plot.signal_list.item(row)
+                index = item.data(QtCore.Qt.ItemDataRole.UserRole)
+                item.setCheckState(QtCore.Qt.CheckState.Unchecked if index in plot.hidden_signals else QtCore.Qt.CheckState.Checked)
+            for sample, label in plot.plotItem.legend.items:
+                sample.update()
+                label.setOpacity(1. if sample.item.isVisible() else .45)
+        finally: plot.updating_visibility = False
+        self.update_readout(plot.workspace)
+
+    def toggle_signals(self, plot, indices):
+        """Space toggles each selected sidebar channel as one undoable action."""
+        for index in indices:
+            self.set_signal_visibility(plot, [index], index in plot.hidden_signals)
+
     def select_signal(self, item):
         if item is not None:
             self.list.setCurrentItem(self.signal_items[item.data(QtCore.Qt.ItemDataRole.UserRole)])
@@ -805,6 +862,7 @@ class Window(WorkspaceMixin, ToolsMixin, Q.QMainWindow):
         """Remove selected curves from one plot and clean unused axes and readouts."""
         for index in indices:
             if index in plot.curves:
+                plot.hidden_signals.discard(index)
                 plot.detach_curve(index)
                 del plot.curves[index]; del plot.signal_axes[index]
                 del plot.display_signals[index]
@@ -846,7 +904,10 @@ class Window(WorkspaceMixin, ToolsMixin, Q.QMainWindow):
         for p in page.plots:
             position = p.x_to_scene(value)
             p.cursors[index].setVisible(page.cursors_visible and bool(np.isfinite(position)))
-            if np.isfinite(position): p.cursors[index].setValue(position)
+            if np.isfinite(position):
+                p.cursors[index].setValue(position)
+                unit = 'Hz' if page.kind == 'spectrum' else 's'
+                p.cursors[index].label.setFormat(f'{"AB"[index]}: {scientific(value)} {unit}')
         page.syncing = False; self.update_readout(page)
 
     def update_readout(self, page=None):
@@ -858,18 +919,18 @@ class Window(WorkspaceMixin, ToolsMixin, Q.QMainWindow):
             return
         a,b = page.cursor_positions; dt = b-a
         if page.kind == 'spectrum':
-            rows = [f'A = {a:.10g} Hz    B = {b:.10g} Hz    Δf = {dt:.10g} Hz    Amplitudes: linear interpolation between frequency samples']
+            rows = [f'A = {scientific(a)} Hz    B = {scientific(b)} Hz    Δf = {scientific(dt)} Hz    Amplitudes: linear interpolation between frequency samples']
         else:
-            rows = [f'A = {a:.10g} s    B = {b:.10g} s    Δt = {dt:.10g} s    1/|Δt| = {1/abs(dt):.10g} Hz' if dt else f'A = B = {a:.10g} s; Δt = 0; frequency undefined']
+            rows = [f'A = {scientific(a)} s    B = {scientific(b)} s    Δt = {scientific(dt)} s    1/|Δt| = {scientific(1/abs(dt))} Hz' if dt else f'A = B = {scientific(a)} s; Δt = 0e0 s; frequency undefined']
         seen = set()
         for owner in page.plots:
             for index, s in owner.display_signals.items():
                 name = self.display_name(owner, index)
-                if (index, name) in seen or np.iscomplexobj(s.values): continue
+                if index in owner.hidden_signals or (index, name) in seen or np.iscomplexobj(s.values): continue
                 seen.add((index, name))
                 v = cursor_values(s,a,b)
                 delta_label = 'Δamplitude' if page.kind == 'spectrum' else 'ΔY'
-                rows.append(f'{name}: A {v["a"]:.8g}   B {v["b"]:.8g}   {delta_label} {v["delta"]:.8g} {s.unit}')
+                rows.append(f'{name}: A {scientific(v["a"])}   B {scientific(v["b"])}   {delta_label} {scientific(v["delta"])} {s.unit}')
         page.readout.setPlainText('\n'.join(rows))
 
     def selected(self):
@@ -975,7 +1036,7 @@ class Window(WorkspaceMixin, ToolsMixin, Q.QMainWindow):
             root.setExpanded(bool(text) and visible)
 
     def fit(self):
-        signals = [s for p in self.plots for s in p.display_signals.values()]
+        signals = [s for p in self.plots for i,s in p.display_signals.items() if i not in p.hidden_signals]
         if not signals: return
         xmin = min(s.time[0] for s in signals)
         xmax = max(s.time[-1] for s in signals)
@@ -983,14 +1044,14 @@ class Window(WorkspaceMixin, ToolsMixin, Q.QMainWindow):
         for p in self.plots: self.fit_plot(p, fit_x=False)
 
     def fit_plot(self, plot, fit_x=True):
-        if not plot.curves: return
-        signals = list(plot.display_signals.values())
+        signals = [s for i,s in plot.display_signals.items() if i not in plot.hidden_signals]
+        if not signals: return
         if fit_x:
             plot.set_physical_x_range(min(s.time[0] for s in signals), max(s.time[-1] for s in signals), padding=0.02)
         for key in [None, *plot.extra_axes]:
             bounds = []
             for index in plot.curves:
-                if plot.signal_axes[index] != key: continue
+                if index in plot.hidden_signals or plot.signal_axes[index] != key: continue
                 s = plot.display_signals[index]
                 cache_key = (index, plot.log_x, plot.log_y)
                 cached = plot.fit_bounds.get(cache_key)
@@ -1010,7 +1071,11 @@ class Window(WorkspaceMixin, ToolsMixin, Q.QMainWindow):
                     plot.fit_bounds[cache_key] = cached
                 if np.isfinite(cached[1]).all(): bounds.append(cached[1])
             if bounds:
-                plot.axis_view(key).setYRange(float(min(b[0] for b in bounds)), float(max(b[1] for b in bounds)), padding=0.05)
+                low = float(min(b[0] for b in bounds)); high = float(max(b[1] for b in bounds))
+                if low == high:
+                    margin = .05 if plot.log_y else max(abs(low)*.05, 1e-6)
+                    low -= margin; high += margin
+                plot.axis_view(key).setYRange(low, high, padding=0.05)
 
     def clear_plots(self):
         """Remove curves from every plot in the active page without unloading sources."""
@@ -1041,7 +1106,7 @@ class Window(WorkspaceMixin, ToolsMixin, Q.QMainWindow):
 # duplicating recordings. Navigation stays independent of structural undo.
 for _method in ('loaded', 'remove_files', 'add_analysis', 'close_analysis', 'rename_analysis',
                 'add_plot', 'remove_plot', 'add_signal', 'remove_signals', 'clear_plots',
-                'rename_signals', 'choose_signal_color', 'choose_background_color', 'set_signal_axis',
+                'set_signal_visibility', 'toggle_signals', 'rename_signals', 'choose_signal_color', 'choose_background_color', 'set_signal_axis',
                 'separate_signal_axes', 'set_plot_log', 'recalculate_fft',
                 'math_dialog', 'filter_dialog', 'align_dialog', 'annotate_dialog',
                 'event_dialog', 'clear_annotations', 'zoom_by', 'fit', 'set_zoom_mode'):
@@ -1053,8 +1118,10 @@ def run(files=()):
     
     @param files Iterable of input paths to load asynchronously after showing the window.
     @return Qt event-loop exit status."""
+    configure_windows_identity()
     app = Q.QApplication.instance() or Q.QApplication(sys.argv[:1])
-    app.setApplicationName('OpenCaliper')
+    app.setDesktopFileName('opencaliper')
+    app.setApplicationName('opencaliper')
     app.setApplicationDisplayName('OpenCaliper')
     pg.setConfigOptions(background='#111924', foreground='#dce6f1', antialias=False)
     app.setStyle('Fusion')

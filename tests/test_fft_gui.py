@@ -74,8 +74,8 @@ class FftGuiTests(unittest.TestCase):
         self.assertIn(0,page.plots[0].curves)
         w.move_cursor(0,64); w.move_cursor(1,128)
         text = page.readout.toPlainText()
-        self.assertIn('A = 64 Hz',text)
-        self.assertIn('Δf = 64 Hz',text)
+        self.assertIn('A = 6.4e1 Hz',text)
+        self.assertIn('Δf = 6.4e1 Hz',text)
         self.assertNotIn('Δt',text)
         self.assertNotIn('1/|Δt|',text)
         self.assertIn('Voltage: A 2.999',text)
@@ -154,7 +154,7 @@ class FftGuiTests(unittest.TestCase):
         # Dragging an InfiniteLine supplies plot coordinates, not physical Hz.
         p.cursors[0].setValue(np.log10(64))
         self.assertAlmostEqual(page.cursor_positions[0],64)
-        self.assertIn('A = 64 Hz',page.readout.toPlainText())
+        self.assertIn('A = 6.4e1 Hz',page.readout.toPlainText())
         np.testing.assert_array_equal(p.display_signals[0].values,fft(self.sources[0])[1])
         w.separate_signal_axes(p,[1])
         axis, view = p.extra_axes[p.signal_axes[1]]

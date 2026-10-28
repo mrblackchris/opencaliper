@@ -53,7 +53,8 @@ Each plot contains:
 
 | Key | Meaning |
 | --- | --- |
-| `ids` | Displayed source channel IDs in curve order |
+| `ids` | Source channel IDs retained in this subplot, in curve order |
+| `hidden` | IDs hidden by visibility controls; missing means all visible |
 | `colors` | Pairs `[channel_id, color_string]` |
 | `names` | Pairs `[channel_id, local_display_name]` |
 | `axes` | Pairs `[channel_id, axis_id]`; null axis is the main Y axis |
@@ -70,7 +71,7 @@ Additional Y-axis identifiers are rebuilt during restore; signal IDs are retaine
 ## What is and is not persisted
 
 Saved state includes loaded source channels and materialized math/filter/alignment
-results, source display names, time/frequency domain, plot aliases, colors, axis
+results, source display names, time/frequency domain, plot aliases, visibility, colors, axis
 assignments, view ranges, cursor positions, annotations, tab titles and applied
 FFT settings. FFT curves are recalculated from embedded sources on restore.
 Pending edits to FFT controls are not applied by saving; click **Recalculate**
@@ -91,7 +92,7 @@ recordings are ignored by Git and excluded from source packages.
 ## Restore, compatibility and undo
 
 Readers reject unknown version numbers or page kinds. Legacy `fft` kinds map to unified Spectrum pages; default `FFT N` titles migrate to Spectrum while custom titles are kept. Version 1 tolerates older
-files without `domain` (defaults to time), `names` (empty), `pending` (empty), and
+files without `domain` (defaults to time), `names` (empty), `hidden` (empty/all visible), `pending` (empty), and
 resampling settings (disabled/Auto). Old readers may not support newer page kinds
 or optional domain metadata. Preserve defaults when extending optional fields;
 use a new version and migration logic for incompatible structural changes.

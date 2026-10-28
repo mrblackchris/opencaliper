@@ -14,6 +14,12 @@ Use this walkthrough with the bundled synthetic measurement before opening your 
 
 ## Start the application
 
+If you have a standalone Windows release, double-click `OpenCaliper.exe`; Python
+installation is not required. Drag supported measurement files onto the EXE or
+use **Open files** after startup. The instructions below apply to the source
+checkout. [Windows build instructions](../bundle/README.md) are available for
+release maintainers.
+
 Install Python 3.10 or newer (Python 3.12 is tested), download and extract the complete project, then start the launcher for your platform:
 
 - **Windows:** double-click `start_opencaliper.bat`.
@@ -308,3 +314,53 @@ malformed, ambiguous or differently formatted metadata is ignored without an
 error or warning, using 1970-01-01 as the unknown-date default. This applies to
 acquisition, native OpenCaliper and ESRP MAT layouts. Invalid sample intervals or
 horizontal sample coordinates still need to be corrected.
+
+
+## Hide and show plotted signals
+
+Each channel in a plot's sidebar has a checkbox. Uncheck it to hide that trace;
+check it to show it again. Select one or more sidebar entries and press **Space**
+to toggle each selected trace. **Delete** still removes the curves from that plot.
+Visibility is local to a subplot: hiding a trace does not unload it, alter its
+source data, or hide it in another plot.
+
+Hidden traces are excluded from cursor readouts and **Fit both axes** bounds.
+Legend visibility toggles and sidebar checkboxes stay synchronized. Visibility
+changes support undo/redo and are saved in workspaces; old workspaces default to
+all traces visible. Data export still includes loaded sources, even hidden ones.
+
+Cursor positions, differences, reciprocal time intervals and amplitudes now use
+scientific notation with an explicit exponent, for example `1e-6 s` and `6.4e1 Hz`.
+The on-plot A/B labels and exported cursor measurements use the same notation.
+
+## Application logo and taskbar icon
+
+OpenCaliper includes a cyan caliper/amber waveform logo as its window and
+application icon. Windows startup sets a distinct application identity for taskbar
+grouping. The logo is packaged with the application and works with each launcher.
+
+Linux desktops may require an application-menu entry to associate a Wayland
+window with its icon. Optionally create one using the same interpreter that runs
+OpenCaliper:
+
+```bash
+.venv/bin/python scripts/create_desktop_launcher.py
+```
+
+For an existing environment use `python` or `python3` instead. This explicitly
+writes `opencaliper.desktop` under `$XDG_DATA_HOME/applications`, defaulting to
+`~/.local/share/applications`. It points to this checkout, its logo and the current
+interpreter; keep them in place. Launch **OpenCaliper** from the application menu
+and pin that entry. Existing entries are preserved unless `--overwrite` is given;
+`--output path` allows writing the entry somewhere else. The application does not
+install or replace desktop entries automatically.
+
+Windows shortcuts pinned previously to Python may retain their shortcut icon;
+unpin the old shortcut if it continues to identify the Python interpreter.
+
+
+## Version and license information
+
+**Help → About OpenCaliper** shows the installed version and source location.
+**Help → Licenses and notices** displays project notices and available dependency
+license texts. These are included in standalone Windows builds too.

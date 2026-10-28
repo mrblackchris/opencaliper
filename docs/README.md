@@ -15,6 +15,7 @@ Start here depending on what you want to do:
 | Create compatible input files | [MAT format](MAT_FORMAT.md) and [example generator](../examples/example.py) |
 | Convert files or add a file format | [Converter scripts and adapter contract](../opencaliper/converterscripts/README.md) |
 | Contribute a fix | [Contributing](../CONTRIBUTING.md) |
+| Build a single-file Windows EXE | [Windows executable guide](../bundle/README.md) |
 | Prepare a distribution | [Releasing](RELEASING.md) |
 
 For a first contribution, read the architecture overview, follow the developer walkthrough, then use the Doxygen reference to navigate the relevant APIs and source. The test map in the developer guide points to examples of expected behavior.

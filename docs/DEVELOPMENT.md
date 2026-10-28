@@ -136,6 +136,8 @@ python -m unittest discover -s tests -p test_fft_gui.py -v
 | `test_cursor_clicks.py` | A/B click placement, logarithmic axes, subplot synchronization and preserved drag/menu gestures |
 | `test_fft_resampling.py` | Known-tone interpolation, Auto/manual rates, retries, CLI and workspace persistence |
 | `test_processing.py` | Signal math/calculus, filter response, alignment, events, spectrograms and memory-mapped inputs |
+| `test_signal_visibility.py` | Checkboxes/Space, hidden-view fit/readouts, scientific formatting, logo and desktop launcher |
+| `test_frozen_bundle.py` | Standalone entry routing, release self-test reports, notices and Windows builder arguments |
 | `test_workspace.py` | Session round trips, source identity, undo/redo, real dialog lifetimes and plot exports |
 | `test_launcher.py` | Environment creation, setup reuse/failure and argument forwarding |
 
@@ -178,3 +180,12 @@ version is selected transitively by PySide6-Essentials; do not mix their version
 Reinstall with `python -m pip install -e '.[dev]'` after dependency changes. The
 managed launchers also reinstall when `pyproject.toml` changes. Do not remove the
 3.10 matrix job or suppress fatal errors to work around this compatibility issue.
+
+
+## Windows executable packaging
+
+Use [bundle/README.md](../bundle/README.md) for native Windows build steps. The
+spec explicitly collects dynamically imported adapters, package data and notices.
+New converter dependencies need to be exercised in the frozen self-test as well
+as parser tests. A source import test does not prove a dependency was frozen.
+The separate Windows workflow runs the actual EXE with `--self-test report.json`.

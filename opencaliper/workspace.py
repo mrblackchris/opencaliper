@@ -24,7 +24,7 @@ class WorkspaceMixin:
             page = self.tabs.widget(n)
             plots = []
             for p in page.plots:
-                plots.append(dict(names={i:name for i,name in p.signal_names.items() if i in p.curves}, ids=list(p.curves), colors={i: pg.mkPen(c.opts['pen']).color().name() for i,c in p.curves.items()},
+                plots.append(dict(hidden=[i for i in p.curves if i in p.hidden_signals], names={i:name for i,name in p.signal_names.items() if i in p.curves}, ids=list(p.curves), colors={i: pg.mkPen(c.opts['pen']).color().name() for i,c in p.curves.items()},
                                   axes=dict(p.signal_axes), ranges={k: p.axis_view(k).viewRange()[1][:] for k in [None,*p.extra_axes]},
                                   x=p.physical_x_range(), log=[p.log_x,p.log_y], background=p.backgroundBrush().color().name(),
                                   annotations=list(getattr(p, 'annotations', [])), sizes=p.panel.sizes()))
@@ -87,6 +87,7 @@ class WorkspaceMixin:
                         if key is not None:
                             if key not in groups: groups[key] = p.new_y_axis()
                             self.set_signal_axis(p,[remap[old]],groups[key])
+                    self.set_signal_visibility(p, [remap[i] for i in spec.get('hidden', [])], False)
                     self.set_zoom_mode(saved['zoom'])
                     for annotation in spec.get('annotations', []): self.draw_annotation(p, annotation)
                     p.set_physical_x_range(*spec['x'])

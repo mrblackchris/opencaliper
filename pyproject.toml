@@ -30,13 +30,16 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["build>=1.2"]
+linux-build = ["pyinstaller>=6.22,<7", "pillow>=10"]
+windows-build = ["pyinstaller>=6.22,<7", "pillow>=10", "PySide6-Essentials>=6.6,<6.12"]
 
 [project.scripts]
 opencaliper = "opencaliper.cli:main"
 mat2raw = "opencaliper.cli:mat2raw"
 
 [tool.setuptools]
-packages = ["opencaliper", "opencaliper.converterscripts"]
+packages = ["opencaliper", "opencaliper.converterscripts", "opencaliper.assets"]
 
 [tool.setuptools.package-data]
+"opencaliper.assets" = ["*.png", "*.md"]
 "opencaliper.converterscripts" = ["README.md"]

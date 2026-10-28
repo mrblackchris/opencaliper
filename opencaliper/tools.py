@@ -4,6 +4,7 @@ from PySide6 import QtCore, QtGui, QtWidgets as Q
 import pyqtgraph as pg
 from .core import Signal, Recording
 from . import processing
+from .display import scientific
 
 
 class ToolsMixin:
@@ -18,6 +19,30 @@ class ToolsMixin:
                         ('Align recording…',self.align_dialog),('Detect events…',self.event_dialog),
                         ('Annotate cursor interval…',self.annotate_dialog),('Spectrogram…',self.spectrogram_dialog)]:
             tools.addAction(text,fn)
+        help_menu = self.menuBar().addMenu('Help')
+        help_menu.addAction('About OpenCaliper', self.about)
+        help_menu.addAction('Licenses and notices', self.show_licenses)
+
+    def about(self):
+        from .release_info import version
+        Q.QMessageBox.about(self, 'About OpenCaliper',
+                            f'OpenCaliper {version()}\nOpen-source signal viewer and analyzer.\n'
+                            'GPL-3.0-only\nhttps://github.com/mrblackchris/opencaliper\n'
+                            'See Help → Licenses and notices for bundled license texts.')
+
+    def show_licenses(self):
+        from .release_info import license_documents
+        documents = license_documents()
+        dialog = Q.QDialog(self); dialog.setWindowTitle('Licenses and notices'); dialog.resize(850,600)
+        layout = Q.QVBoxLayout(dialog)
+        choices = Q.QComboBox(); choices.addItems(documents)
+        text = Q.QPlainTextEdit(); text.setReadOnly(True)
+        choices.currentTextChanged.connect(lambda key: text.setPlainText(documents[key]))
+        if documents: text.setPlainText(documents[choices.currentText()])
+        layout.addWidget(choices); layout.addWidget(text)
+        buttons = Q.QDialogButtonBox(Q.QDialogButtonBox.StandardButton.Close)
+        buttons.rejected.connect(dialog.reject); layout.addWidget(buttons)
+        dialog.exec(); dialog.deleteLater()
 
     def form(self,title,fields):
         """Show a modal form and return acceptance, keeping supplied widgets alive.
@@ -206,11 +231,11 @@ class ToolsMixin:
                 from .analysis import cursor_values
                 a,b = page.cursor_positions
                 axis_unit = 'Hz' if page.kind == 'spectrum' else 's'
-                footer.append(f'A = {a:.9g} {axis_unit}   B = {b:.9g} {axis_unit}   Δ = {b-a:.9g} {axis_unit}')
+                footer.append(f'A = {scientific(a)} {axis_unit}   B = {scientific(b)} {axis_unit}   Δ = {scientific(b-a)} {axis_unit}')
                 for index, s in plot.display_signals.items():
-                    if np.iscomplexobj(s.values): continue
+                    if index in plot.hidden_signals or np.iscomplexobj(s.values): continue
                     values = cursor_values(s,a,b)
-                    footer.append(f'{self.display_name(plot, index)}: A {values["a"]:.7g}  B {values["b"]:.7g}  ΔY {values["delta"]:.7g} {s.unit}')
+                    footer.append(f'{self.display_name(plot, index)}: A {scientific(values["a"])}  B {scientific(values["b"])}  ΔY {scientific(values["delta"])} {s.unit}')
             font = QtGui.QFont(); font.setPixelSize(max(14,int(width/100)))
             footer_height = min(height/3, (len(footer)+1)*width/70) if footer else 0
             painter.fillRect(QtCore.QRectF(0,0,width,height),plot.backgroundBrush())

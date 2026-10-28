@@ -100,7 +100,7 @@ class WorkspaceTests(unittest.TestCase):
             path = Path(folder)/'with-cursors.svg'
             w.export_plot_to(w.plots[0],path)
             svg = path.read_text()
-            self.assertIn('0.1',svg)
+            self.assertIn('1e-1',svg)
             import xml.etree.ElementTree as ET
             text = ''.join(ET.fromstring(svg).itertext())
             self.assertIn('ΔY',''.join(text.split()))

@@ -54,6 +54,25 @@ format adapters, regression tests and the public synthetic example.
 
 Update the version in `pyproject.toml` and the release notes in `CHANGELOG.md` before tagging a release. Use the README as the feature description and document known limits. Do not make measurement-accuracy or safety guarantees that have not been validated.
 
+## Single-file Windows release
+
+The [executable build guide](../bundle/README.md) also covers Linux builds using
+`python scripts/build_linux.py`. Record the build distribution, glibc version
+and CPU architecture, and verify the executable on each supported target system.
+
+The [Windows build guide](../bundle/README.md) covers `OpenCaliper.exe`, the
+optional `windows-build` dependency extra, native Windows builds and the GitHub
+Actions artifact. The executable includes Python, Qt, the icon and converters;
+recipients need only the EXE. The workflow runs application tests and a self-test
+of the built binary before uploading it. Tag pushes matching `v*` or manual
+workflow dispatch produce a candidate, not a published GitHub Release.
+
+The bundle is unsigned by default. Verify it on native Windows, check the
+embedded Help/license information, and keep the matching source revision and
+dependency inventory with your release records. If you sign the executable,
+compute the distributed checksum after signing. Do not commit binary build
+artifacts or signing credentials to the source repository.
+
 ## Binary bundles and installers
 
 A Python source distribution/wheel is different from an executable that bundles dependencies. Before distributing an executable or installer, inventory the exact included components, preserve their license texts and notices, and satisfy their applicable source and redistribution requirements, including GPL and Qt/LGPL obligations. Do not bundle proprietary vendor libraries without appropriate rights.
