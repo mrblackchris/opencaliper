@@ -64,8 +64,13 @@ The [Windows build guide](../bundle/README.md) covers `OpenCaliper.exe`, the
 optional `windows-build` dependency extra, native Windows builds and the GitHub
 Actions artifact. The executable includes Python, Qt, the icon and converters;
 recipients need only the EXE. The workflow runs application tests and a self-test
-of the built binary before uploading it. Tag pushes matching `v*` or manual
-workflow dispatch produce a candidate, not a published GitHub Release.
+of the built binary before uploading it. Manual workflow dispatch produces a
+candidate artifact. Tag pushes matching `v*` also publish a GitHub Release with
+the tested EXE, checksum and dependency inventory attached. The release job has
+`contents: write` permission; the build job retains read-only repository access.
+Reruns add missing files without replacing existing assets. Existing draft
+releases stay drafts until you publish them. Linux binaries can be attached
+manually; there is currently no Linux build workflow.
 
 The bundle is unsigned by default. Verify it on native Windows, check the
 embedded Help/license information, and keep the matching source revision and

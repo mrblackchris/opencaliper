@@ -72,12 +72,25 @@ environment, so use a clean build environment for releases.
 2. Open **Actions → Windows executable → Run workflow** and select the branch.
 3. Wait for the application tests, binary build and executable smoke test to pass.
 4. Download the **OpenCaliper-Windows-x64** artifact and extract it.
-5. Test `OpenCaliper.exe` on native Windows, then attach that file to your release.
+5. Test `OpenCaliper.exe` on native Windows. Manual runs produce artifacts only.
 
-Version tags matching `v*` also trigger a build. The workflow produces artifacts;
-it does not automatically publish or modify a GitHub Release. The artifact ZIP
-also contains a SHA-256 checksum and the build dependency inventory. Only the EXE
-is needed to run; retain the inventory for your release records.
+Version tag pushes matching `v*` trigger a build and, after all tests succeed,
+automatically publish a GitHub Release with `OpenCaliper.exe`, its SHA-256 checksum
+and dependency inventory attached. Users download the EXE directly from
+**Releases → Assets**, without navigating Actions or extracting an artifact ZIP.
+Existing releases receive missing assets; reruns preserve files already uploaded
+and leave an existing release's draft/published status unchanged.
+
+Commit and push the workflow first, then tag the intended commit, for example:
+
+```sh
+git tag -a v0.1.1 -m 'OpenCaliper 0.1.1'
+git push origin v0.1.1
+```
+
+Choose an unused version and update `pyproject.toml` and `CHANGELOG.md` first.
+Only the EXE is needed to run. Linux currently has a local builder only; attach
+its executable manually if you want it included in the same release.
 
 ## Verify the actual executable
 

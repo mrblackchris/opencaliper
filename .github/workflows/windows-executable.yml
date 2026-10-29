@@ -62,3 +62,41 @@ jobs:
             build/windows/**/warn-*.txt
             ${{ runner.temp }}/opencaliper-self-test.json
           if-no-files-found: ignore
+
+  release:
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    concurrency:
+      group: windows-release-${{ github.ref }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: OpenCaliper-Windows-x64
+          path: release
+      - name: Publish Windows download on GitHub Releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view "$RELEASE_TAG" --json assets > release-state.json; then
+            # Preserve existing downloads when a successful workflow is rerun.
+            for file in release/*; do
+              name=$(basename "$file")
+              if jq -e --arg name "$name" '.assets[] | select(.name == $name)' release-state.json > /dev/null; then
+                echo "Keeping existing release asset: $name"
+              else
+                gh release upload "$RELEASE_TAG" "$file"
+              fi
+            done
+          else
+            gh release create "$RELEASE_TAG" --verify-tag --generate-notes \
+              --title "OpenCaliper $RELEASE_TAG" \
+              release/OpenCaliper.exe release/OpenCaliper.exe.sha256 release/build-dependencies.txt
+          fi

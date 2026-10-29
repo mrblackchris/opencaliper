@@ -34,6 +34,10 @@ Start with the [step-by-step user guide](docs/USER_GUIDE.md). Contributors can f
 
 ## Single-file executables
 
+Download Windows releases from [GitHub Releases](https://github.com/mrblackchris/opencaliper/releases).
+Open a release's **Assets** and download **OpenCaliper.exe**; no Python installation
+is needed. New version tag builds publish this download after the tests pass.
+
 A standalone Windows x64 build can be produced as **`OpenCaliper.exe`**, including
 Python, the GUI, converters and logo. Recipients run one file without installing
 Python. Build it with the **Windows executable** GitHub Actions workflow, or run
