@@ -106,9 +106,10 @@ class DisplayAndLauncherTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             path=Path(folder)/'opencaliper.desktop'
             create_launcher(path,interpreter='/example path/python')
-            content=path.read_text()
+            content=path.read_text(encoding='utf-8')
             self.assertIn('Exec="/example path/python"',content)
-            self.assertIn('assets/opencaliper.png',content)
+            from scripts.create_desktop_launcher import ROOT, desktop_value
+            self.assertIn('Icon='+desktop_value(ROOT/'opencaliper/assets/opencaliper.png'),content)
             self.assertIn('StartupWMClass=opencaliper',content)
             with self.assertRaises(FileExistsError): create_launcher(path)
 

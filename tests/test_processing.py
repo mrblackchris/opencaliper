@@ -62,3 +62,6 @@ class ProcessingTests(unittest.TestCase):
             base = s.values
             while base.base is not None and not isinstance(base,np.memmap): base = base.base
             self.assertIsInstance(base,np.memmap)
+            # Windows cannot remove the temporary file while either view retains
+            # its mapping. Release both references before directory cleanup.
+            del base, s

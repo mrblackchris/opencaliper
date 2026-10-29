@@ -99,7 +99,7 @@ class WorkspaceTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder)/'with-cursors.svg'
             w.export_plot_to(w.plots[0],path)
-            svg = path.read_text()
+            svg = path.read_text(encoding='utf-8')
             self.assertIn('1e-1',svg)
             import xml.etree.ElementTree as ET
             text = ''.join(ET.fromstring(svg).itertext())
