@@ -1,6 +1,6 @@
 """Keysight Infiniium HDF5 waveforms, converted to seconds and physical units.
 
-Schema: /Waveforms/<name>/<name>Data with XOrg/XInc on the channel group.
+Schema: /Waveforms/CHANNEL/CHANNELData with XOrg/XInc on the channel group.
 Integer H5INt samples use raw * YInc + YOrg; floating H5 samples are already
 physical values. YReference is internal metadata, not an ADC offset to subtract.
 See https://helpfiles.keysight.com/csg/d9300a/Help/Infiniium-UG/Content/Topics/Files/HDF5_Schema.htm

@@ -17,9 +17,25 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y doxygen graphviz
       - name: Generate API reference and drawings
         run: |
-          doxygen Doxyfile
-          test -f docs-api/html/index.html
-          test ! -s docs-api/warnings.log
+          status=0
+          doxygen Doxyfile || status=$?
+          if [ -s docs-api/warnings.log ]; then
+            echo "Doxygen emitted warnings:"
+            cat docs-api/warnings.log
+            status=1
+          fi
+          if [ ! -f docs-api/html/index.html ]; then
+            echo "Doxygen did not generate docs-api/html/index.html"
+            status=1
+          fi
+          exit "$status"
+      - name: Upload documentation diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: opencaliper-documentation-diagnostics
+          path: docs-api/warnings.log
+          if-no-files-found: ignore
       - name: Upload browsable HTML reference
         uses: actions/upload-artifact@v4
         with:
