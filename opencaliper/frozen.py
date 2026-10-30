@@ -69,6 +69,29 @@ def self_test(report):
                                 format='7.3',appendmat=False)
             np.testing.assert_allclose(load(path).signals[0].values,source.signals[0].values)
             checked.append('mat-v7.3')
+            import h5py
+            path = folder/'scope.h5'
+            with h5py.File(path, 'w') as file:
+                file['FileType/KeysightH5FileType'] = np.bytes_('Keysight Waveform')
+                for index in (1, 2):
+                    group = file.create_group(f'Waveforms/Channel {index}')
+                    group.attrs.update(XOrg=0., XInc=.001, YInc=.25, YOrg=1.,
+                                       NumPoints=4, XUnits='Second', YUnits='Volt')
+                    group[f'Channel {index}Data'] = np.array([-2, 0, 2, 4], dtype=np.int16)
+            scope = load(path)
+            assert len(scope.signals) == 2
+            np.testing.assert_allclose(scope.signals[0].values, [.5, 1., 1.5, 2.])
+            checked.append('h5')
+            networks = []
+            for ports in (2, 4):
+                path = folder/f'network.s{ports}p'
+                pairs = ' '.join(f'{i+1} 0' for i in range(ports*ports))
+                path.write_text(f'# MHz S RI R 75\n1 {pairs}\n2 {pairs}\n', encoding='utf-8')
+                network = load(path)
+                assert len(network.signals) == ports*ports
+                assert all(s.domain == 'sparameter' for s in network.signals)
+                networks.append(network)
+                checked.append(f's{ports}p')
             path = folder/'receiver.mat'
             savemat(path, dict(freq=np.arange(1,5)*1e6, avg=[-50.,-40.,-45.,-55.], peak=[-40.,-30.,-35.,-45.]))
             receiver = load(path)
@@ -94,10 +117,22 @@ def self_test(report):
             archive = folder/'session.ocw'; window.save_workspace(archive)
             window.open_workspace(archive)
             assert window.workspace.kind == 'spectrum'
+            window.loaded(networks[0])
+            assert window.workspace.kind == 'sparameter'
+            window.workspace.representation.setCurrentText('Phase (degrees)')
+            chart = window.show_smith_chart(window.workspace)
+            assert len(chart.traces) == 2
+            app.processEvents()
+            window.export_plot_to(chart.plot, folder/'smith.svg')
+            chart.close()
+            window.save_workspace(archive); window.open_workspace(archive)
+            assert window.workspace.sparameter_representation == 'Phase (degrees)'
+            assert window.signals[max(window.signals)].reference_impedance == 75
             from .release_info import license_documents
             assert license_documents(), 'License documents are missing'
             result.update(status='ok', converters=checked, receiver=True, fft=True,
-                          gui=True, icon=True, plot_exports=['png','svg','pdf'], workspace=True)
+                          gui=True, icon=True, plot_exports=['png','svg','pdf'], workspace=True,
+                          sparameters=True, smith_chart=True)
     except Exception:
         result['error'] = traceback.format_exc()
     finally:

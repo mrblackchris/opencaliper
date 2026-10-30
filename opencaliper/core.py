@@ -16,9 +16,10 @@ class Signal:
     @param values Matching numeric amplitudes; complex and nonfinite values are allowed.
     @param unit Physical amplitude unit, or an empty string if unspecified.
     
-    @param domain "time" (seconds, default) or "frequency" (Hz).
+    @param domain "time" (seconds), "frequency" (Hz), or "sparameter" (Hz).
+    @param reference_impedance Positive real port reference resistance in ohms for S-parameters.
 
-    The time field holds horizontal coordinates in either domain. Arrays are
+    The time field holds horizontal coordinates in all three domains. Arrays are
     flattened during initialization. Individual operations impose additional
     constraints. Frequency-domain source and FFT signals use time for Hz.
     The dataclass is mutable; display code should treat source arrays as read-only."""
@@ -27,10 +28,17 @@ class Signal:
     values: np.ndarray
     unit: str = ""
     domain: str = "time"
+    reference_impedance: float | None = None
 
     def __post_init__(self):
-        if self.domain not in ("time", "frequency"):
-            raise ValueError("Signal domain must be time or frequency")
+        if self.domain not in ("time", "frequency", "sparameter"):
+            raise ValueError("Signal domain must be time, frequency or sparameter")
+        if self.domain == 'sparameter' and self.reference_impedance is None:
+            self.reference_impedance = 50.
+        if self.reference_impedance is not None:
+            self.reference_impedance = float(self.reference_impedance)
+            if not np.isfinite(self.reference_impedance) or self.reference_impedance <= 0:
+                raise ValueError('Reference impedance must be finite and positive')
         self.time = np.asarray(self.time, dtype=float).reshape(-1)
         self.values = np.asarray(self.values).reshape(-1)
         if len(self.time) != len(self.values) or not len(self.time):

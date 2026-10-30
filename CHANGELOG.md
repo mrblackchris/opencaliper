@@ -4,6 +4,11 @@
 
 ### Viewer and analysis
 
+- S Parameter analysis pages for Touchstone S2P/S4P, with dB/linear magnitude,
+  wrapped/unwrapped phase, real/imaginary views and reference-aware Smith charts.
+- Keysight Infiniium HDF5 waveform import with integer scaling and float passthrough.
+- Complex network samples, reference impedances and view choices persist in native MAT/workspaces.
+
 - Per-subplot trace visibility checkboxes and Space-key toggles, preserved in workspaces and undo history.
 - Scientific notation for cursor labels, measurements and plot-export readouts.
 - Generated OpenCaliper logo, packaged window/taskbar icon and optional Linux desktop launcher.

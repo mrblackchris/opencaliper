@@ -17,11 +17,18 @@ export(recording, 'generated.mat')  # Refuses an existing destination.
 restored = load('generated.mat')
 ```
 
-`Signal(name, time, values, unit='', domain='time')` validates nonempty numeric
+`Signal(name, time, values, unit='', domain='time', reference_impedance=None)` validates nonempty numeric
 arrays, matching lengths and a finite nondecreasing horizontal axis. Arrays are
 flattened. `domain='time'` means seconds; `domain='frequency'` means Hz. The field
 name `time` is retained for API compatibility in both domains. Complex and
 nonfinite amplitudes are accepted by the model; operations apply their own limits.
+
+`domain='sparameter'` uses Hz and complex, dimensionless Sij values. Its
+`reference_impedance` is a positive real resistance in ohms, defaulting to 50.
+`load('network.s2p')` and `load('network.s4p')` return all matrix entries in row
+order as individual signals. Native MAT preserves their complex values, domain
+and references. `load('scope.h5')` imports supported Keysight waveforms in physical
+units. See [HDF5 and S-parameters](RF_AND_HDF5.md) for conversion details and limits.
 
 `Recording(signals, source='', timestamp=...)` groups channels, each of which may
 have a different horizontal axis. Unknown acquisition time defaults to the Unix

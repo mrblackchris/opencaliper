@@ -23,6 +23,10 @@ FORMATS = {
     '.wvf': Format('Yokogawa WVF', 'wvfconvert', 'wvfexport'),
     '.bin': Format('Keysight BIN', 'binconvert'),
     '.npy': Format('NumPy columns', 'npyconvert'),
+    '.h5': Format('Keysight HDF5', 'h5convert'),
+    '.hdf5': Format('Keysight HDF5', 'h5convert'),
+    '.s2p': Format('Touchstone 2-port', 'touchstoneconvert'),
+    '.s4p': Format('Touchstone 4-port', 'touchstoneconvert'),
 }
 
 

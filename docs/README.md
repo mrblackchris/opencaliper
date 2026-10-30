@@ -9,6 +9,7 @@ Start here depending on what you want to do:
 | Use the Python data and processing APIs | [Python API](PYTHON_API.md) |
 | Understand saved sessions and compatibility | [Workspace schema](WORKSPACE_FORMAT.md) |
 | Learn the viewer with a synthetic recording | [User guide](USER_GUIDE.md) |
+| Load Keysight HDF5 or view Touchstone S2P/S4P and Smith charts | [HDF5 and S-parameters](RF_AND_HDF5.md) |
 | Understand components, state and execution | [Architecture](ARCHITECTURE.md) |
 | Generate a browsable API reference and architecture drawings | [Doxygen](DOXYGEN.md) |
 | Run the Python API, debug or implement a change | [Developer guide](DEVELOPMENT.md) |

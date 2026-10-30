@@ -20,6 +20,7 @@ dependencies = [
     "numpy>=2.0,<2.3",
     "scipy>=1.14,<1.17",
     "hdf5storage",
+    "h5py>=3.9",
     "asammdf==8.7.2",
     "spicelib>=1.4",
     # Qt/Shiboken 6.12 drains None references on pre-3.12 CPython during plot use.

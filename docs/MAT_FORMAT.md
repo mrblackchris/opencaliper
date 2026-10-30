@@ -84,6 +84,11 @@ xlabel('Time (s)'); ylabel(m.Channel1_unit);
 
 MAT export uses an additional interchange layout that preserves arbitrary channel names and independent time vectors. Each channel has `signal_0_name`, `signal_0_unit`, `signal_0_time`, `signal_0_domain`, and `signal_0_values`; subsequent channels use indices 1, 2, and so on. `signal_0_domain` is `time` (default if absent, horizontal values in seconds) or `frequency` (horizontal values in Hz). `recording_timestamp` stores an ISO timestamp. OpenCaliper can read these files back. This export layout differs from the shared-time-base acquisition convention demonstrated by `examples/example.py`.
 
+S-parameter exports use `signal_N_domain='sparameter'`, Hz coordinates and complex,
+dimensionless `signal_N_values`. Optional `signal_N_reference_impedance` holds the
+positive real port resistance in ohms (50 when absent). These channels reopen in
+an S Parameter tab; see [HDF5 and S-parameters](RF_AND_HDF5.md).
+
 ## Implementation reference
 
 The acquisition reader is `read_measurement()` in [acquisition.py](../opencaliper/acquisition.py); [core.py](../opencaliper/core.py) converts its output into the shared `Recording` and `Signal` model. The [Doxygen reference](DOXYGEN.md) documents these functions and their parameters, validation and scaling behavior. For a complete API example, see the [developer walkthrough](DEVELOPMENT.md#2-follow-a-recording-through-the-python-api).

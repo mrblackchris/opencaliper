@@ -44,6 +44,8 @@ in its header. These conversions do not preserve every device-specific field.
 | `wvfconvert.py` | `read(path)`: Yokogawa single-block IS2 WVF/HDR |
 | `rawconvert.py` | `read(path)`: LTspice single-plot transient RAW |
 | `binconvert.py` | `read(path)`: Keysight AG normal/average float32 waveforms |
+| `h5convert.py` | `read(path)`: Keysight Infiniium HDF5 analog waveforms, integer scaling or physical floats |
+| `touchstoneconvert.py` | `read(path)`: Touchstone S2P/S4P complex single-ended Sij channels |
 | `npyconvert.py` | `read(path)`: memory-mapped time/channel columns |
 | `matexport.py` | `write(recording, path, overwrite=False)`: native MAT |
 | `mdfexport.py` | `write(...)`: MDF 3.30 and MDF 4.10 |
@@ -62,6 +64,10 @@ The viewer consumes **`Recording` containing `Signal` objects**, defined in
 [`../core.py`](../core.py). A reader's `read(path)` must return this model, with
 physical amplitudes, not raw ADC counts. Set `Signal.domain="time"` (default)
 for timestamps in **seconds**, or `domain="frequency"` for frequency bins in **Hz**.
+Use `domain="sparameter"` for dimensionless complex Sij samples in Hz, with
+positive real `reference_impedance` in ohms (default 50). Keep the complex values;
+do not replace them with dB or phase at import. See the
+[format guide](../../docs/RF_AND_HDF5.md) for supported HDF5/Touchstone layouts.
 The compatible `time` array field holds horizontal coordinates in either domain:
 
 ```python
@@ -98,8 +104,9 @@ It preserves independent channel time axes and uses these top-level fields:
 | `signal_0_name` | Channel name string |
 | `signal_0_unit` | Unit string, e.g. `V` |
 | `signal_0_time` | Numeric vector: seconds for time data, Hz for frequency data |
-| `signal_0_domain` | `time` (default when absent) or `frequency` |
+| `signal_0_domain` | `time` (default when absent), `frequency` or `sparameter` |
 | `signal_0_values` | Matching numeric vector of physical amplitudes |
+| `signal_0_reference_impedance` | Optional positive real resistance in ohms; defaults to 50 for S-parameters |
 
 Repeat `signal_N_*` for zero-based integer channel indices. Row and column vectors
 are accepted and flattened. Channels are loaded in numeric index order.

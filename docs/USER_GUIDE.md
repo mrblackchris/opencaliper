@@ -1,5 +1,8 @@
 # User guide
 
+For Keysight oscilloscope HDF5, Touchstone S2P/S4P, **New S Parameter Analysis**
+and Smith charts, see [HDF5 and S-parameters](RF_AND_HDF5.md).
+
 Use this walkthrough with the bundled synthetic measurement before opening your own data. It requires no acquisition hardware.
 
 - [Start the application](#start-the-application)

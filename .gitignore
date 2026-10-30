@@ -18,6 +18,8 @@ dist/
 *.[pP][sS][dD][aA][tT][aA]
 *.h5
 *.hdf5
+*.[sS]2[pP]
+*.[sS]4[pP]
 *.csv
 *.npy
 *.npz

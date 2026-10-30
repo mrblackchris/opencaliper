@@ -18,6 +18,7 @@ from .workspace import WorkspaceMixin, reversible
 from .tools import ToolsMixin
 from .display import scientific
 from .branding import application_icon, configure_windows_identity
+from .sparameters import REPRESENTATIONS, SmithChart, displayed
 
 
 class Loader(QtCore.QThread):
@@ -294,11 +295,12 @@ class Plot(pg.PlotWidget):
 class AnalysisPage(Q.QSplitter):
     """One analysis tab owning plots, cursor positions and navigation state.
     
-    kind selects time or spectrum (legacy fft maps to spectrum). fft_interval holds source seconds while
+    kind selects time, spectrum or sparameter (legacy fft maps to spectrum). fft_interval holds source seconds while
     cursor_positions holds displayed Hz. Neither state belongs to another tab."""
     def __init__(self, kind='time', fft_interval=None):
         super().__init__(QtCore.Qt.Orientation.Vertical)
         self.kind = 'spectrum' if kind == 'fft' else kind
+        self.sparameter_representation = REPRESENTATIONS[0]
         self.pending_signals = set()
         self.fft_resample = False
         self.fft_sample_rate = 0.
@@ -319,6 +321,16 @@ class AnalysisPage(Q.QSplitter):
         self.addWidget(self.readout)
         self.setStretchFactor(0, 1); self.setStretchFactor(1, 0)
         self.setSizes([650, 110])
+        if self.kind == 'sparameter':
+            settings = Q.QWidget(); row = Q.QHBoxLayout(settings)
+            row.addWidget(Q.QLabel('S-parameter view:'))
+            self.representation = Q.QComboBox(); self.representation.addItems(REPRESENTATIONS)
+            row.addWidget(self.representation)
+            self.smith_button = Q.QPushButton('Smith chart…'); row.addWidget(self.smith_button)
+            row.addStretch()
+            settings.setMaximumHeight(60); self.insertWidget(0, settings)
+            self.setStretchFactor(0, 0); self.setStretchFactor(1, 1); self.setStretchFactor(2, 0)
+            self.setSizes([50, 650, 110])
         if self.kind == 'spectrum':
             settings = Q.QWidget(); settings_layout = Q.QVBoxLayout(settings)
             row = Q.QHBoxLayout(); settings_layout.addLayout(row)
@@ -372,7 +384,9 @@ class Window(WorkspaceMixin, ToolsMixin, Q.QMainWindow):
         bar = self.addToolBar('Measurement')
         for label, callback in [('Open files', self.open_files), ('Export all', self.save),
                                 ('New Time Analysis', lambda: self.add_analysis()),
-                                ('New Spectrum Analysis', lambda: self.add_analysis('spectrum')), ('Add plot', self.add_plot), ('Clear plots', self.clear_plots),
+                                ('New Spectrum Analysis', lambda: self.add_analysis('spectrum')),
+                                ('New S Parameter Analysis', lambda: self.add_analysis('sparameter')),
+                                ('Add plot', self.add_plot), ('Clear plots', self.clear_plots),
                                 ('Fit both axes', self.fit), ('FFT', self.spectrum), ('Statistics', self.stats)]:
             bar.addAction(label, callback)
         self.cursors_enabled = Q.QCheckBox('Diff cursors'); bar.addWidget(self.cursors_enabled)
@@ -433,14 +447,17 @@ class Window(WorkspaceMixin, ToolsMixin, Q.QMainWindow):
         return [p for i in range(self.tabs.count()) for p in self.tabs.widget(i).plots]
 
     def add_analysis(self, kind='time', fft_interval=None):
-        """Create a time or Spectrum page; accept fft as a legacy Spectrum alias."""
+        """Create an analysis page; accept fft as a legacy Spectrum alias."""
         self.analysis_counter += 1
         kind = 'spectrum' if kind == 'fft' else kind
         page = AnalysisPage(kind, fft_interval)
         if kind == 'spectrum':
             page.cursors_visible = True
             page.recalculate.clicked.connect(lambda: self.recalculate_fft(page))
-        title = 'Spectrum' if kind == 'spectrum' else f'Time Analysis {self.analysis_counter}'
+        if kind == 'sparameter':
+            page.representation.currentTextChanged.connect(lambda text: self.set_sparameter_representation(page, text))
+            page.smith_button.clicked.connect(lambda: self.show_smith_chart(page))
+        title = {'spectrum': 'Spectrum', 'sparameter': 'S Parameter'}.get(kind, f'Time Analysis {self.analysis_counter}')
         index = self.tabs.addTab(page, title)
         self.tabs.setCurrentIndex(index)
         self.add_plot()
@@ -507,7 +524,8 @@ class Window(WorkspaceMixin, ToolsMixin, Q.QMainWindow):
             index = self.next_signal_id; self.next_signal_id += 1
             item = Q.QTreeWidgetItem([f'{s.name} [{s.unit}]'])
             item.setData(0, QtCore.Qt.ItemDataRole.UserRole, index)
-            item.setToolTip(0, f'{len(s.time):,} samples | {s.time[0]:.9g} … {s.time[-1]:.9g} '+('Hz' if s.domain == 'frequency' else 's'))
+            item.setToolTip(0, f'{len(s.time):,} samples | {s.time[0]:.9g} … {s.time[-1]:.9g} '+('s' if s.domain == 'time' else 'Hz')+
+                            (f' | Reference: {s.reference_impedance:g} Ω' if s.domain == 'sparameter' else ''))
             root.addChild(item)
             self.signals[index] = s; self.signal_items[index] = item; ids.append(index)
         self.files[file_id] = (root, ids)
@@ -516,14 +534,24 @@ class Window(WorkspaceMixin, ToolsMixin, Q.QMainWindow):
         if self.list.currentItem() is None: self.list.setCurrentItem(root)
         if not getattr(self, '_restoring', False):
             target_exists = target_page is not None and any(self.tabs.widget(n) is target_page for n in range(self.tabs.count()))
-            if target_exists and target_page.kind == 'spectrum':
+            sparameter_ids = [i for i in ids if self.signals[i].domain == 'sparameter']
+            if sparameter_ids:
+                page = (target_page if target_exists and target_page.kind == 'sparameter' else
+                        self.workspace if self.workspace.kind == 'sparameter' else self.add_analysis('sparameter'))
+                self.tabs.setCurrentWidget(page)
+                if not page.plots: self.add_plot()
+                plot = target_plot if target_plot in page.plots else page.plots[0]
+                for i in sparameter_ids: self.add_signal(i, plot)
+            if target_exists and target_page.kind in ('spectrum', 'sparameter'):
                 page = target_page
                 plot = target_plot if target_plot in page.plots else None
                 if plot is None:
                     if not page.plots:
                         self.tabs.setCurrentWidget(page); self.add_plot()
                     plot = page.plots[0]
-                for i in ids: self.add_signal(i, plot)
+                for i in ids:
+                    if (self.signals[i].domain == 'sparameter') == (page.kind == 'sparameter'):
+                        self.add_signal(i, plot)
             else:
                 frequency_ids = [i for i in ids if self.signals[i].domain == 'frequency']
                 if frequency_ids:
@@ -558,8 +586,8 @@ class Window(WorkspaceMixin, ToolsMixin, Q.QMainWindow):
         plot.scene().sigMouseClicked.connect(lambda event: self.place_cursor(plot, event))
         plot.getViewBox().color_menu = lambda pos: self.plot_color_menu(plot, pos)
         plot.getViewBox().sigYRangeChanged.connect(lambda view, bounds: self.update_annotation_labels(plot, bounds))
-        if page.kind == 'spectrum': plot.setLabel('bottom', 'Frequency', units='Hz')
-        if page.kind == 'spectrum':
+        if page.kind != 'time': plot.setLabel('bottom', 'Frequency', units='Hz')
+        if page.kind != 'time':
             # Receiver sweeps may have nonuniform spacing; automatic decimation
             # assumes regular X samples and can distort these spectra.
             plot.setDownsampling(ds=1, auto=False)
@@ -603,7 +631,7 @@ class Window(WorkspaceMixin, ToolsMixin, Q.QMainWindow):
             lambda view, bounds: self.sync_time_range(page, plot, bounds))
         plot.dropped.connect(lambda index: self.add_signal(index, plot))
         plot.files_dropped.connect(lambda paths: [self.open_path(path, page, plot) for path in paths])
-        axis_unit = 'Hz' if page.kind == 'spectrum' else 's'
+        axis_unit = 's' if page.kind == 'time' else 'Hz'
         plot.cursors = [pg.InfiniteLine(pos=p, angle=90, movable=True, pen=pg.mkPen(c, width=2),
                         label=f'{l}: {scientific(p)} {axis_unit}',
                         labelOpts={'position': .65 if l == 'A' else .35, 'color': c, 'fill': (17, 25, 36, 210)})
@@ -616,7 +644,7 @@ class Window(WorkspaceMixin, ToolsMixin, Q.QMainWindow):
         plot.log_y_box.toggled.connect(lambda: self.set_plot_log(plot))
         plot.plotItem.ctrl.logXCheck.toggled.connect(plot.log_x_box.setChecked)
         plot.plotItem.ctrl.logYCheck.toggled.connect(plot.log_y_box.setChecked)
-        if page.kind == 'spectrum':
+        if page.kind != 'time':
             plot.log_x_box.setChecked(True)
 
     def set_plot_log(self, plot):
@@ -718,7 +746,7 @@ class Window(WorkspaceMixin, ToolsMixin, Q.QMainWindow):
             if not ok: break
             if not name.strip(): continue
             plot.signal_names[index] = name.strip()
-            label = f'{name.strip()} [{self.signals[index].unit}]'
+            label = f'{name.strip()} [{plot.display_signals[index].unit}]'
             curve = plot.curves[index]; curve.opts['name'] = label
             for sample, legend_label in plot.plotItem.legend.items:
                 if sample.item is curve: legend_label.setText(label)
@@ -765,8 +793,9 @@ class Window(WorkspaceMixin, ToolsMixin, Q.QMainWindow):
     def update_axis_labels(self, plot):
         for key in [None, *plot.extra_axes]:
             indices = [i for i in plot.curves if plot.signal_axes[i] == key]
-            units = sorted({self.signals[i].unit for i in indices if self.signals[i].unit})
-            label = ' / '.join(self.display_name(plot, i) for i in indices) if key is not None else ('Amplitude / level' if plot.workspace.kind == 'spectrum' else 'Signals')
+            units = sorted({plot.display_signals[i].unit for i in indices if plot.display_signals[i].unit})
+            main_label = plot.workspace.sparameter_representation if plot.workspace.kind == 'sparameter' else ('Amplitude / level' if plot.workspace.kind == 'spectrum' else 'Signals')
+            label = ' / '.join(self.display_name(plot, i) for i in indices) if key is not None else main_label
             axis = plot.getAxis('left') if key is None else plot.extra_axes[key][0]
             axis.setLabel(label if len(units) <= 1 else label+' ('+', '.join(units)+')',
                           units=units[0] if len(units) == 1 else '')
@@ -793,7 +822,7 @@ class Window(WorkspaceMixin, ToolsMixin, Q.QMainWindow):
         plot.workspace.pending_signals.discard(index)
         plot.display_signals[index] = s
         y = np.abs(s.values) if np.iscomplexobj(s.values) else s.values
-        if self.signals[index].domain == 'frequency' and np.any(y <= 0) and plot.log_y:
+        if self.signals[index].domain != 'time' and np.any(y <= 0) and plot.log_y:
             plot.log_y_box.setChecked(False)
         color = plot.signal_colors.get(index, pg.intColor(index, hues=12))
         plot.curves[index] = plot.plot(s.time, y, pen=pg.mkPen(color, width=1), name=f'{self.display_name(plot, index)} [{s.unit}]')
@@ -906,7 +935,7 @@ class Window(WorkspaceMixin, ToolsMixin, Q.QMainWindow):
             p.cursors[index].setVisible(page.cursors_visible and bool(np.isfinite(position)))
             if np.isfinite(position):
                 p.cursors[index].setValue(position)
-                unit = 'Hz' if page.kind == 'spectrum' else 's'
+                unit = 's' if page.kind == 'time' else 'Hz'
                 p.cursors[index].label.setFormat(f'{"AB"[index]}: {scientific(value)} {unit}')
         page.syncing = False; self.update_readout(page)
 
@@ -915,10 +944,10 @@ class Window(WorkspaceMixin, ToolsMixin, Q.QMainWindow):
         page = page or self.workspace
         if page is None: return
         if not page.cursors_visible:
-            page.readout.setPlainText('Enable Diff cursors to measure Δf and amplitude differences.' if page.kind == 'spectrum' else 'Enable Diff cursors to measure Δt, 1/Δt and per-signal ΔY. FFT and statistics use the full record while cursors are disabled.')
+            page.readout.setPlainText('Enable Diff cursors to measure Δf and amplitude differences.' if page.kind != 'time' else 'Enable Diff cursors to measure Δt, 1/Δt and per-signal ΔY. FFT and statistics use the full record while cursors are disabled.')
             return
         a,b = page.cursor_positions; dt = b-a
-        if page.kind == 'spectrum':
+        if page.kind != 'time':
             rows = [f'A = {scientific(a)} Hz    B = {scientific(b)} Hz    Δf = {scientific(dt)} Hz    Amplitudes: linear interpolation between frequency samples']
         else:
             rows = [f'A = {scientific(a)} s    B = {scientific(b)} s    Δt = {scientific(dt)} s    1/|Δt| = {scientific(1/abs(dt))} Hz' if dt else f'A = B = {scientific(a)} s; Δt = 0e0 s; frequency undefined']
@@ -929,7 +958,7 @@ class Window(WorkspaceMixin, ToolsMixin, Q.QMainWindow):
                 if index in owner.hidden_signals or (index, name) in seen or np.iscomplexobj(s.values): continue
                 seen.add((index, name))
                 v = cursor_values(s,a,b)
-                delta_label = 'Δamplitude' if page.kind == 'spectrum' else 'ΔY'
+                delta_label = 'Δamplitude' if page.kind != 'time' else 'ΔY'
                 rows.append(f'{name}: A {scientific(v["a"])}   B {scientific(v["b"])}   {delta_label} {scientific(v["delta"])} {s.unit}')
         page.readout.setPlainText('\n'.join(rows))
 
@@ -943,7 +972,7 @@ class Window(WorkspaceMixin, ToolsMixin, Q.QMainWindow):
     def stats(self):
         try:
             s = self.selected()
-            if self.workspace.kind == 'spectrum':
+            if self.workspace.kind != 'time':
                 index = self.list.currentItem().data(0, QtCore.Qt.ItemDataRole.UserRole)
                 s = self.transformed_signal(index, self.workspace)
             values = statistics(s, *self.interval())
@@ -976,6 +1005,10 @@ class Window(WorkspaceMixin, ToolsMixin, Q.QMainWindow):
         
         The source arrays are unchanged. Frequency cursors are not FFT input bounds."""
         source = self.signals[index]
+        if page.kind == 'sparameter':
+            return displayed(source, page.sparameter_representation)
+        if source.domain == 'sparameter':
+            raise ValueError('This channel belongs in an S Parameter tab')
         if page.kind == 'spectrum' and source.domain == 'frequency':
             return source
         if page.kind == 'time':
@@ -986,6 +1019,40 @@ class Window(WorkspaceMixin, ToolsMixin, Q.QMainWindow):
         f, amplitude = fft(source, *(page.fft_interval if interval is None else interval),
                            resample=enabled, sample_rate=(rate or None) if enabled else None)
         return Signal(source.name, f, amplitude, source.unit, domain='frequency')
+
+    @reversible
+    def set_sparameter_representation(self, page, representation):
+        """Refresh real-valued curves while retaining source data and plot settings."""
+        page.sparameter_representation = representation
+        with QtCore.QSignalBlocker(page.representation): page.representation.setCurrentText(representation)
+        for plot in page.plots:
+            for index, curve in plot.curves.items():
+                signal = self.transformed_signal(index, page)
+                plot.display_signals[index] = signal
+                curve.setData(signal.time, signal.values)
+                label = f'{self.display_name(plot, index)} [{signal.unit}]'
+                curve.opts['name'] = label
+                for sample, legend_label in plot.plotItem.legend.items:
+                    if sample.item is curve: legend_label.setText(label)
+                for row in range(plot.signal_list.count()):
+                    item = plot.signal_list.item(row)
+                    if item.data(QtCore.Qt.ItemDataRole.UserRole) == index:
+                        item.setText(f'{label} — {self.signal_items[index].parent().text(0)}')
+            if representation != 'Magnitude (linear)': plot.log_y_box.setChecked(False)
+            self.update_axis_labels(plot); self.fit_plot(plot)
+        self.update_readout(page)
+
+    def show_smith_chart(self, page):
+        """Open a chart of the page's visible reflection coefficients."""
+        dialog = SmithChart(self, page)
+        if not dialog.traces:
+            dialog.deleteLater()
+            self.error('Display a reflection coefficient (S11, S22, S33 or S44) first')
+            return
+        self.dialogs.append(dialog)
+        dialog.destroyed.connect(lambda: self.dialogs.remove(dialog) if dialog in self.dialogs else None)
+        dialog.show()
+        return dialog
 
     def recalculate_fft(self, page):
         """Validate all requested spectra before replacing any displayed FFT arrays."""

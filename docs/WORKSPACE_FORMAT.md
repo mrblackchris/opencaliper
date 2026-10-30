@@ -31,7 +31,7 @@ The JSON object contains:
 | Key | Meaning |
 | --- | --- |
 | `version` | Integer schema version; currently `1` |
-| `channels` | Object keyed by channel ID strings, with `name`, `unit`, `domain` |
+| `channels` | Object keyed by channel ID strings, with `name`, `unit`, `domain`, optional `reference_impedance` in ohms |
 | `files` | List of `[source_display_name, [channel_ids...]]` explorer groups |
 | `pages` | Ordered tab descriptions |
 | `current` | Zero-based active tab index |
@@ -40,7 +40,8 @@ Each page contains:
 
 | Key | Meaning |
 | --- | --- |
-| `title`, `kind` | Tab label and `time` or `spectrum`; legacy `fft` is accepted and migrated |
+| `title`, `kind` | Tab label and `time`, `spectrum` or `sparameter`; legacy `fft` is accepted and migrated |
+| `representation` | S-parameter view, default `Magnitude (dB)`; ignored by other page kinds |
 | `interval` | Applied FFT input time bounds `[start, stop]`, each nullable |
 | `resample`, `sample_rate` | Applied FFT interpolation setting and Hz; `0` means Auto |
 | `pending` | Source IDs whose FFT failed, retained for retry |
@@ -84,6 +85,11 @@ open spectrogram windows. Source names are explorer display names, usually
 basenames. Save native MAT from an original `Recording` if its acquisition datetime
 must be preserved. The GUI's **Export all** constructs a new Recording and uses
 the default acquisition timestamp.
+
+Complex S-parameter source arrays, reference impedances and the applied page
+representation are embedded. Missing S-parameter references default to 50 ohms.
+Smith-chart windows are snapshots and are not persisted; reopen them after
+restoring the S Parameter page. Older readers can reject the new page/domain.
 
 An archive embeds all loaded samples, including channels not currently plotted.
 Sharing it therefore shares those measurements. Generated workspaces and local

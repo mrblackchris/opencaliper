@@ -39,7 +39,7 @@ def main(argv=None):
         r = load(args.input)
         if args.command == 'info':
             print(json.dumps([dict(index=i, name=s.name, unit=s.unit, domain=s.domain,
-                                   axis_unit="Hz" if s.domain == "frequency" else "s", samples=len(s.time),
+                                   axis_unit="s" if s.domain == "time" else "Hz", samples=len(s.time),
                                    start=float(s.time[0]), stop=float(s.time[-1])) for i,s in enumerate(r.signals)], indent=2))
         else:
             if not 0 <= args.signal < len(r.signals):

@@ -29,6 +29,7 @@ class WorkspaceMixin:
                                   x=p.physical_x_range(), log=[p.log_x,p.log_y], background=p.backgroundBrush().color().name(),
                                   annotations=list(getattr(p, 'annotations', [])), sizes=p.panel.sizes()))
             pages.append(dict(title=self.tabs.tabText(n), kind=page.kind, interval=page.fft_interval,
+                              representation=page.sparameter_representation,
                               pending=list(page.pending_signals), resample=page.fft_resample, sample_rate=page.fft_sample_rate,
                               cursors=list(page.cursor_positions), visible=page.cursors_visible, zoom=page.zoom_mode,
                               sizes=page.plot_splitter.sizes(), plots=plots))
@@ -72,6 +73,8 @@ class WorkspaceMixin:
                 if page.kind == 'spectrum':
                     page.resample_box.setChecked(page.fft_resample)
                     page.sample_rate.setValue(page.fft_sample_rate)
+                if page.kind == 'sparameter':
+                    self.set_sparameter_representation(page, saved.get('representation', 'Magnitude (dB)'))
                 for p in list(page.plots): self.remove_plot(p)
                 for spec in saved['plots']:
                     self.add_plot(); p = page.plots[-1]
@@ -137,7 +140,7 @@ class WorkspaceMixin:
         # JSON represents ID/axis mappings as pairs to preserve integer and None keys.
         metadata = {k:v for k,v in state.items() if k != 'signals'}
         metadata['version'] = 1
-        metadata['channels'] = {i:dict(name=s.name,unit=s.unit,domain=s.domain) for i,s in state['signals'].items()}
+        metadata['channels'] = {i:dict(name=s.name,unit=s.unit,domain=s.domain,reference_impedance=s.reference_impedance) for i,s in state['signals'].items()}
         for page in metadata['pages']:
             for p in page['plots']:
                 for key in ('colors','axes','ranges','names'): p[key] = list(p[key].items())
@@ -173,11 +176,12 @@ class WorkspaceMixin:
                 signals = {}
                 for i,info in state['channels'].items():
                     arrays = [np.load(io.BytesIO(z.read(f'{i}-{kind}.npy')),allow_pickle=False) for kind in ('time','values')]
-                    signals[int(i)] = Signal(info['name'],*arrays,info['unit'],domain=info.get('domain', 'time'))
+                    signals[int(i)] = Signal(info['name'],*arrays,info['unit'],domain=info.get('domain', 'time'),
+                                             reference_impedance=info.get('reference_impedance'))
                 state['signals'] = signals
                 if not state['pages']: raise ValueError('Workspace has no analysis pages')
                 for page in state['pages']:
-                    if page['kind'] not in ('time','fft','spectrum'): raise ValueError('Unknown analysis type')
+                    if page['kind'] not in ('time','fft','spectrum','sparameter'): raise ValueError('Unknown analysis type')
                     for p in page['plots']:
                         for key in ('colors','axes','ranges','names'): p[key] = dict(p.get(key, []))
             self.restore_state(state)

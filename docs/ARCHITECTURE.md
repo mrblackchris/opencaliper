@@ -43,6 +43,7 @@ flowchart TD
 | [converterscripts/](../opencaliper/converterscripts/README.md) | Format registry, detection, separate readers/exporters and native MAT conversion | Adding file formats |
 | [core.py](../opencaliper/core.py) | Public data model and stable load/export facade | File support, validation or common data representation |
 | [analysis.py](../opencaliper/analysis.py) | Numerical operations on full source arrays | FFT normalization, statistics or interpolation |
+| [sparameters.py](../opencaliper/sparameters.py) | Sij display transforms and normalized impedance Smith-chart dialog | RF representations and reflection charts |
 | [workspace.py](../opencaliper/workspace.py) | Portable archives and reversible view/source snapshots | Workspace format and undo history |
 | [tools.py](../opencaliper/tools.py) | Interactive processing dialogs, annotations and plot export | Signal tools and exported plots |
 | [processing.py](../opencaliper/processing.py) | Qt-independent math, filters, alignment, events and spectrograms | Numerical processing |
@@ -58,6 +59,14 @@ Format dispatch lives in `converterscripts/convert.py`, using the explicit regis
 ## Data model and contracts
 
 `Signal(name, time, values, unit, domain="time")` represents one channel. A frequency-domain source sets `domain="frequency"`; its compatible `time` field then holds Hz. `Recording(signals, source, timestamp)` groups channels originating from a file or constructed in Python. `source` is a path string used for identification; `timestamp` is separate acquisition metadata.
+
+Touchstone sources use `domain="sparameter"` for complex dimensionless Sij samples
+in Hz, with `reference_impedance` in ohms. The HDF5 adapter emits physical time
+waveforms; the Touchstone adapter emits the complex matrix entries. S Parameter
+pages materialize real display vectors using `sparameters.displayed()` while
+retaining original complex sources. The Smith dialog uses the source reflection
+coefficients and the per-port references, independently of the page's selected
+representation. Native MAT and portable workspaces retain this metadata.
 
 ```mermaid
 classDiagram

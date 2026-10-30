@@ -74,7 +74,7 @@ class ToolsMixin:
     def derived(self,signal):
         """Register a materialized result and display it in a matching-domain tab."""
         self.loaded(Recording([signal],'Derived signals'))
-        kind = 'spectrum' if signal.domain == 'frequency' else 'time'
+        kind = {'frequency': 'spectrum', 'sparameter': 'sparameter'}.get(signal.domain, 'time')
         if self.workspace.kind != kind: self.add_analysis(kind)
         if not self.plots: self.add_plot()
         self.add_signal(self.next_signal_id-1,self.plots[0])
@@ -230,7 +230,7 @@ class ToolsMixin:
             if page.cursors_visible:
                 from .analysis import cursor_values
                 a,b = page.cursor_positions
-                axis_unit = 'Hz' if page.kind == 'spectrum' else 's'
+                axis_unit = 's' if page.kind == 'time' else 'Hz'
                 footer.append(f'A = {scientific(a)} {axis_unit}   B = {scientific(b)} {axis_unit}   Δ = {scientific(b-a)} {axis_unit}')
                 for index, s in plot.display_signals.items():
                     if index in plot.hidden_signals or np.iscomplexobj(s.values): continue

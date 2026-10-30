@@ -18,6 +18,7 @@ prune __pycache__
 global-exclude *.py[cod] *.npy *.npz *.ocw
 global-exclude *.mat *.MAT *.bin *.BIN *.mf4 *.MF4 *.mdf *.MDF
 global-exclude *.wvf *.WVF *.hdr *.HDR *.raw *.RAW *.wdf *.WDF
+global-exclude *.h5 *.H5 *.hdf5 *.HDF5 *.s2p *.S2P *.s4p *.S4P
 global-exclude *.dll *.so *.dylib *.exe *.pem *.key .env .env.*
 
 # Only this generated synthetic MAT file is public.

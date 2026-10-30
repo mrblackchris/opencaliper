@@ -10,5 +10,6 @@ def write(recording, path, overwrite=False):
     for i, s in enumerate(recording.signals):
         p = f'signal_{i}_'
         data.update({p+'name': s.name, p+'unit': s.unit, p+'time': s.time, p+'values': s.values, p+'domain': s.domain})
+        if s.reference_impedance is not None: data[p+'reference_impedance'] = s.reference_impedance
     with path.open('wb' if overwrite else 'xb') as f:
         savemat(f, data, do_compression=True)

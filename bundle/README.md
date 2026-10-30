@@ -106,7 +106,8 @@ if ($p.ExitCode -ne 0) { throw 'Executable smoke test failed' }
 Use a report path without spaces in this abbreviated example; the workflow quotes
 paths containing spaces. A successful report has `"status": "ok"`. It exercises
 registered converters (including MDF/MF4, RAW, WVF/HDR, Keysight BIN, NPY and v7.3
-MAT), measured receiver spectra, FFT, visibility controls, the GUI logo,
+MAT), Keysight HDF5, Touchstone S2P/S4P, measured receiver spectra, FFT, S Parameter
+pages and Smith charts, visibility controls, the GUI logo,
 PNG/SVG/PDF export and workspace save/restore. It generates synthetic temporary
 data and does not open private measurements.
 

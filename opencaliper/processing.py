@@ -46,6 +46,8 @@ def expression(text, signals, name='Math', unit=''):
         raise ValueError('Expression must reference a channel')
     if any(s.domain != used[0].domain for s in used):
         raise ValueError("Cannot mix time-domain and frequency-domain channels")
+    if used[0].domain == 'sparameter' and any(s.reference_impedance != used[0].reference_impedance for s in used):
+        raise ValueError('S-parameter math requires identical reference impedances; renormalize explicitly first')
     t = used[0].time
     if any(not np.array_equal(t, s.time) for s in used):
         raise ValueError('Channels must have identical time axes; align/resample first')
@@ -71,7 +73,8 @@ def expression(text, signals, name='Math', unit=''):
         raise ValueError('Use channels, numbers, + - * / and abs/sqrt/sin/cos/differentiate/integrate only')
     with np.errstate(all='raise'):
         y = np.broadcast_to(visit(tree), t.shape).copy()
-    return Signal(name, t, y, unit, domain=used[0].domain)
+    return Signal(name, t, y, unit, domain=used[0].domain,
+                  reference_impedance=used[0].reference_impedance)
 
 
 def filtered(source, kind, frequency, order=4, quality=30):

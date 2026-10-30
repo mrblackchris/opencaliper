@@ -22,6 +22,9 @@ Start with the [step-by-step user guide](docs/USER_GUIDE.md). Contributors can f
 - Mouse-wheel and rectangle zoom, panning, and fit-to-data controls.
 - Differential cursors for time, frequency and amplitude measurements.
 - ESRP receiver MAT spectra (`freq`, `avg`, `peak`, `qpk`) open directly in a Spectrum tab.
+- Keysight HDF5 scope waveforms with integer scaling and floating-sample support.
+- Touchstone S2P/S4P files open in S Parameter analyses, with magnitude, phase,
+  real/imaginary views and an exportable Smith chart for reflection traces.
 - Plot-local signal names configurable from the right-click menu.
 - FFT analysis tabs with drag-and-drop input, selectable source intervals, and logarithmic axes.
 - Minimum, maximum, peak-to-peak, mean, RMS and standard deviation.
@@ -257,10 +260,17 @@ The [converter guide](opencaliper/converterscripts/README.md) documents the expe
 | MATLAB `.mat` (documented acquisition and OpenCaliper layouts) | Yes | Yes |
 | MDF `.mdf` / `.mf4` | Yes | Yes |
 | Keysight `.bin` | Yes | No |
+| Keysight Infiniium `.h5` / `.hdf5` | Yes, normal/average unsegmented analog waveforms | No |
+| Touchstone `.s2p` / `.s4p` | Yes, complex single-ended S-parameters | No; convert to native MAT |
 | Yokogawa `.wvf` + companion `.hdr` | Yes | Yes |
 | LTspice `.raw` | Yes | Yes |
 
 Readers support numeric waveform data within these formats: Keysight normal/average float32 time waveforms, Yokogawa single-block IS2 data, MDF numeric scalar channels, and LTspice time-domain recordings with one plot per file. Compatibility depends on the file's encoding, not only its extension.
+
+Touchstone files immediately plot all Sij traces in an **S Parameter** tab.
+Use **New S Parameter Analysis**, the representation selector and **Smith chart…**
+to compare networks. See the [HDF5 and S-parameter guide](docs/RF_AND_HDF5.md) for
+scaling, supported layouts, reference impedances, chart use and limitations.
 
 ### Workspace and signal tools
 
