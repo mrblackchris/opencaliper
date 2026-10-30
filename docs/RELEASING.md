@@ -65,7 +65,7 @@ optional `windows-build` dependency extra, native Windows builds and the GitHub
 Actions artifact. The executable includes Python, Qt, the icon and converters;
 recipients need only the EXE. The workflow runs application tests and a self-test
 of the built binary before uploading it. Manual workflow dispatch produces a
-candidate artifact. Tag pushes matching `v*` also publish a GitHub Release with
+candidate artifact. Tag pushes matching `v*` or `OpenCaliperV*` also publish a GitHub Release with
 the tested EXE, checksum and dependency inventory attached. The release job has
 `contents: write` permission; the build job retains read-only repository access.
 Reruns add missing files without replacing existing assets. Existing draft

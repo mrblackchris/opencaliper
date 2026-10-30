@@ -74,7 +74,7 @@ environment, so use a clean build environment for releases.
 4. Download the **OpenCaliper-Windows-x64** artifact and extract it.
 5. Test `OpenCaliper.exe` on native Windows. Manual runs produce artifacts only.
 
-Version tag pushes matching `v*` trigger a build and, after all tests succeed,
+Version tag pushes matching `v*` or `OpenCaliperV*` trigger a build and, after all tests succeed,
 automatically publish a GitHub Release with `OpenCaliper.exe`, its SHA-256 checksum
 and dependency inventory attached. Users download the EXE directly from
 **Releases → Assets**, without navigating Actions or extracting an artifact ZIP.

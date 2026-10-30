@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.0 — Unreleased
+## 1.14 — 2026-10-30
 
 ### Viewer and analysis
 

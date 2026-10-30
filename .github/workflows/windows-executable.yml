@@ -5,6 +5,7 @@ on:
   push:
     tags:
       - 'v*'
+      - 'OpenCaliperV*'
 
 permissions:
   contents: read
@@ -64,7 +65,7 @@ jobs:
           if-no-files-found: ignore
 
   release:
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    if: github.event_name == 'push' && (startsWith(github.ref, 'refs/tags/v') || startsWith(github.ref, 'refs/tags/OpenCaliperV'))
     needs: build
     runs-on: ubuntu-latest
     permissions:
@@ -97,6 +98,6 @@ jobs:
             done
           else
             gh release create "$RELEASE_TAG" --verify-tag --generate-notes \
-              --title "OpenCaliper $RELEASE_TAG" \
+              --title "$RELEASE_TAG" \
               release/OpenCaliper.exe release/OpenCaliper.exe.sha256 release/build-dependencies.txt
           fi
