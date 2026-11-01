@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Import LTspice AC RAW frequency sweeps with complex voltage/current samples;
+  open directly in Spectrum with linear magnitude plots and cursor readouts.
+
 ## 1.14 — 2026-10-30
 
 ### Viewer and analysis

@@ -42,7 +42,7 @@ in its header. These conversions do not preserve every device-specific field.
 | `esrpconvert.py` | ESRP receiver `freq`/`avg`/`peak`/`qpk` (`pk` legacy alias) MAT spectra; selected by `matconvert.py` from contents |
 | `mdfconvert.py` | `read(path)`: MDF/MF4 numeric scalar channels |
 | `wvfconvert.py` | `read(path)`: Yokogawa single-block IS2 WVF/HDR |
-| `rawconvert.py` | `read(path)`: LTspice single-plot transient RAW |
+| `rawconvert.py` | `read(path)`: LTspice single-plot transient or AC RAW; complex AC samples retained |
 | `binconvert.py` | `read(path)`: Keysight AG normal/average float32 waveforms |
 | `h5convert.py` | `read(path)`: Keysight Infiniium HDF5 analog waveforms, integer scaling or physical floats |
 | `touchstoneconvert.py` | `read(path)`: Touchstone S2P/S4P complex single-ended Sij channels |
@@ -57,6 +57,15 @@ MDF 3 and MDF 4 share adapters because the asammdf library handles both. Optiona
 format-specific libraries are imported inside adapters, not by the registry.
 Existing `opencaliper.load()` and `opencaliper.export()` remain supported and route
 through `convert.py`.
+
+AC RAW files with a `frequency` axis load as Hz-based frequency-domain channels,
+preserving complex voltage/current samples. Spectrum pages display their linear
+magnitude without applying an FFT. Cursor readouts use the displayed magnitude.
+Native MAT and workspaces retain the original complex values; time-only exporters
+reject AC channels. A simulated voltage/current is not automatically an S-parameter.
+One plot per file is supported; DC/operating-point sweeps remain unsupported.
+ASCII AC import uses the text encoding supported by spicelib (the tested fixture
+is UTF-8); binary LTspice AC with a UTF-16LE header is also tested.
 
 ## Expected in-memory format
 

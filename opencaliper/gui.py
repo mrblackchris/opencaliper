@@ -1010,6 +1010,8 @@ class Window(WorkspaceMixin, ToolsMixin, Q.QMainWindow):
         if source.domain == 'sparameter':
             raise ValueError('This channel belongs in an S Parameter tab')
         if page.kind == 'spectrum' and source.domain == 'frequency':
+            if np.iscomplexobj(source.values):
+                return Signal(source.name, source.time, np.abs(source.values), source.unit, domain='frequency')
             return source
         if page.kind == 'time':
             if source.domain != 'time': raise ValueError('This channel belongs in a Spectrum tab')

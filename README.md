@@ -265,7 +265,7 @@ The [converter guide](opencaliper/converterscripts/README.md) documents the expe
 | Yokogawa `.wvf` + companion `.hdr` | Yes | Yes |
 | LTspice `.raw` | Yes | Yes |
 
-Readers support numeric waveform data within these formats: Keysight normal/average float32 time waveforms, Yokogawa single-block IS2 data, MDF numeric scalar channels, and LTspice time-domain recordings with one plot per file. Compatibility depends on the file's encoding, not only its extension.
+Readers support numeric waveform data within these formats: Keysight normal/average float32 time waveforms, Yokogawa single-block IS2 data, MDF numeric scalar channels, and LTspice transient or AC recordings with one plot per file. AC RAW imports retain complex samples and open directly in Spectrum with linear magnitude displayed, without FFT. Convert to native MAT to preserve complex values; RAW export remains time-only. Compatibility depends on the file's encoding, not only its extension.
 
 Touchstone files immediately plot all Sij traces in an **S Parameter** tab.
 Use **New S Parameter Analysis**, the representation selector and **Smith chart…**
