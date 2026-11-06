@@ -48,6 +48,7 @@ flowchart TD
 | [tools.py](../opencaliper/tools.py) | Interactive processing dialogs, annotations and plot export | Signal tools and exported plots |
 | [processing.py](../opencaliper/processing.py) | Qt-independent math, filters, alignment, events and spectrograms | Numerical processing |
 | [gui.py](../opencaliper/gui.py) | Qt widgets, loading workers, session state, plotting and interactions | Tabs, curves, axes, menus or cursor behavior |
+| [axis_settings.py](../opencaliper/axis_settings.py) | Editable axes, physical-range dialog and ViewBox range constraints | Manual bounds and independent scale locks |
 | [cli.py](../opencaliper/cli.py) | Argument parsing and calls into core/analysis | Commands and options |
 | [acquisition.py](../opencaliper/acquisition.py) | Acquisition MAT decoding, physical scaling, timestamp parsing, waveform quantization/writing | Acquisition convention or waveform export |
 | [raw.py](../opencaliper/raw.py) | Binary transient RAW output | RAW headers, precision or sample layout |

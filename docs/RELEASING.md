@@ -56,6 +56,27 @@ Update the version in `pyproject.toml` and the release notes in `CHANGELOG.md` b
 
 ## Single-file Windows release
 
+### Release helper on Linux
+
+Add release notes under `## Unreleased` in `CHANGELOG.md`, then run from the
+checkout (replace the version with an unused number):
+
+```sh
+./scripts/release.sh --dry-run 1.15
+./scripts/release.sh 1.15 "Add LTspice AC RAW import support"
+```
+
+The helper previews pending files and asks you to type `OpenCaliperV1.15` before
+changing anything. It updates the package version, dates the Unreleased notes,
+commits **all non-ignored changes**, creates the annotated tag and pushes `main`
+and the tag atomically. Review the pending files first. It requires Bash, Python
+3, Git and working GitHub authentication, and refuses other branches or existing
+tags. `--dry-run` checks the remote but changes no files or refs. The script does
+not wait for CI; GitHub publishes the release only after its build/tests pass.
+If the push fails, it prints the command to retry the existing commit/tag.
+
+### Build and distribution
+
 The [executable build guide](../bundle/README.md) also covers Linux builds using
 `python scripts/build_linux.py`. Record the build distribution, glibc version
 and CPU architecture, and verify the executable on each supported target system.

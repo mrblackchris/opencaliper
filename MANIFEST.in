@@ -5,6 +5,7 @@ include start_opencaliper.bat start_opencaliper.sh
 include start_opencaliper_no_venv.bat start_opencaliper_no_venv.sh
 include run_opencaliper.py
 recursive-include scripts *.py
+recursive-include scripts *.sh
 recursive-include examples *.py
 recursive-include docs *.md *.png *.dox
 recursive-include tests *.py

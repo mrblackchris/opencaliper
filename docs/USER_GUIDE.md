@@ -1,5 +1,27 @@
 # User guide
 
+## Set axis ranges and lock scaling
+
+Double-click the bottom X axis, left Y axis or an additional right Y axis to
+open its settings. Enter minimum and maximum in physical units, including
+scientific notation such as `1e-6`, select linear/logarithmic scaling and click
+**Apply** or **OK**. Frequency entries are Hz and time entries are seconds,
+even if the axis labels display MHz or µs. Logarithmic bounds must be positive.
+Minimum must be smaller than maximum. **Cancel** closes without applying further
+edits; changes already made with **Apply** remain in effect.
+
+**Lock X** in each plot header holds the shared horizontal range for the entire
+analysis page. **Lock Y** holds all vertical ranges in that plot, including
+additional Y axes. They work independently: zoom, pan, rectangle zoom, fitting
+and added channels leave a locked range unchanged. New subplots inherit a
+locked X range. Uncheck a lock to resume normal navigation; use Fit to refit.
+
+Axis settings can explicitly replace a locked range. Double-click an additional
+right axis to set its own Y bounds. Log Y applies to all Y axes in a plot.
+Locked ranges containing zero or negative values must be adjusted before
+switching to logarithmic scaling. Settings and locks are saved in workspaces
+and support Undo/Redo.
+
 For Keysight oscilloscope HDF5, Touchstone S2P/S4P, **New S Parameter Analysis**
 and Smith charts, see [HDF5 and S-parameters](RF_AND_HDF5.md).
 

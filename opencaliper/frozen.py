@@ -114,9 +114,16 @@ def self_test(report):
                 assert path.stat().st_size > 100
             window.loaded(receiver)
             assert window.workspace.kind == 'spectrum'
+            plot = window.plots[0]
+            window.apply_axis_settings(plot, 'x', None, 1e6, 4e6, True, True)
+            window.apply_axis_settings(plot, 'y', None, -80., 0., False, True)
+            window.zoom_by(.5)
+            np.testing.assert_allclose(plot.physical_x_range(), [1e6, 4e6])
+            np.testing.assert_allclose(plot.physical_y_range(), [-80., 0.])
             archive = folder/'session.ocw'; window.save_workspace(archive)
             window.open_workspace(archive)
             assert window.workspace.kind == 'spectrum'
+            assert window.workspace.x_locked and window.plots[0].y_locked
             window.loaded(networks[0])
             assert window.workspace.kind == 'sparameter'
             window.workspace.representation.setCurrentText('Phase (degrees)')
@@ -132,7 +139,7 @@ def self_test(report):
             assert license_documents(), 'License documents are missing'
             result.update(status='ok', converters=checked, receiver=True, fft=True,
                           gui=True, icon=True, plot_exports=['png','svg','pdf'], workspace=True,
-                          sparameters=True, smith_chart=True)
+                          sparameters=True, smith_chart=True, axis_settings=True)
     except Exception:
         result['error'] = traceback.format_exc()
     finally:

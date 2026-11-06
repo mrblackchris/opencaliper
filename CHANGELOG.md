@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Double-click axis dialogs for manual bounds and logarithmic scaling, with shared
+  X locks and per-plot Y locks preserved in workspaces and undo history.
+
 - Import LTspice AC RAW frequency sweeps with complex voltage/current samples;
   open directly in Spectrum with linear magnitude plots and cursor readouts.
 

@@ -42,6 +42,7 @@ Each page contains:
 | --- | --- |
 | `title`, `kind` | Tab label and `time`, `spectrum` or `sparameter`; legacy `fft` is accepted and migrated |
 | `representation` | S-parameter view, default `Magnitude (dB)`; ignored by other page kinds |
+| `x_locked` | Freeze linked horizontal ranges for this page; defaults to false |
 | `interval` | Applied FFT input time bounds `[start, stop]`, each nullable |
 | `resample`, `sample_rate` | Applied FFT interpolation setting and Hz; `0` means Auto |
 | `pending` | Source IDs whose FFT failed, retained for retry |
@@ -62,12 +63,16 @@ Each plot contains:
 | `ranges` | Pairs `[axis_id, [low, high]]` in display coordinates |
 | `x` | Visible horizontal bounds in physical seconds or Hz |
 | `log` | `[log_x, log_y]` booleans |
+| `y_locked` | Freeze all Y ranges for this plot; defaults to false |
 | `background` | Plot background color string |
 | `annotations` | `[start, stop, label]` entries in physical horizontal units |
 | `sizes` | Horizontal sidebar/plot splitter sizes |
 
 Mappings are represented as pairs to retain integer and null keys through JSON.
 Additional Y-axis identifiers are rebuilt during restore; signal IDs are retained.
+Locks are applied after restoring physical ranges and axis assignments. Existing
+workspaces without lock fields remain unlocked. Explicit axis settings and lock
+changes are undoable.
 
 ## What is and is not persisted
 

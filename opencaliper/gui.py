@@ -19,6 +19,7 @@ from .tools import ToolsMixin
 from .display import scientific
 from .branding import application_icon, configure_windows_identity
 from .sparameters import REPRESENTATIONS, SmithChart, displayed
+from .axis_settings import EditableAxis, AxisSettingsDialog, constrain
 
 
 class Loader(QtCore.QThread):
@@ -162,7 +163,7 @@ class Plot(pg.PlotWidget):
     files_dropped = QtCore.Signal(list)
 
     def __init__(self):
-        super().__init__(viewBox=SignalViewBox()); self.setAcceptDrops(True)
+        super().__init__(viewBox=SignalViewBox(), axisItems={side: EditableAxis(side) for side in ('bottom', 'left')}); self.setAcceptDrops(True)
         self.showGrid(x=True, y=True, alpha=0.2)
         self.setLabel('bottom', 'Time', units='s')
         self.addLegend(); self.curves = {}
@@ -177,6 +178,8 @@ class Plot(pg.PlotWidget):
         self.next_axis_id = 0
         self.log_x = False
         self.log_y = False
+        self.y_locked = False
+        self.adjusting_y = False
         self.setDownsampling(auto=True, mode='peak'); self.setClipToView(True)
         self.getViewBox().sigResized.connect(self.update_axis_geometry)
         self.previous_y_range = self.getViewBox().viewRange()[1][:]
@@ -190,16 +193,20 @@ class Plot(pg.PlotWidget):
     def sync_y_navigation(self, view, bounds):
         old_low, old_high = self.previous_y_range
         self.previous_y_range = list(bounds)
+        if self.adjusting_y: return
         if old_high <= old_low: return
         low_fraction = (bounds[0]-old_low)/(old_high-old_low)
         high_fraction = (bounds[1]-old_low)/(old_high-old_low)
         for axis, extra in self.extra_axes.values():
+            if self.y_locked: continue
             low, high = extra.viewRange()[1]
             extra.setYRange(low+(high-low)*low_fraction, low+(high-low)*high_fraction, padding=0)
 
     def new_y_axis(self):
         key = self.next_axis_id; self.next_axis_id += 1
-        axis = pg.AxisItem('right')
+        axis = EditableAxis('right')
+        axis.settings_requested.connect(lambda: self.window().edit_axis(self, 'y', key))
+        axis.setToolTip('Double-click to set the Y range and scaling')
         view = pg.ViewBox(enableMenu=False)
         view.setMouseEnabled(x=False, y=False)
         view.setAcceptedMouseButtons(QtCore.Qt.MouseButton.NoButton)
@@ -209,6 +216,9 @@ class Plot(pg.PlotWidget):
         self.plotItem.layout.addItem(axis, 2, 3+len(self.extra_axes))
         axis.linkToView(view); view.setXLink(self.getViewBox())
         self.extra_axes[key] = (axis, view)
+        axis.setLogMode(self.log_y)
+        view.setYRange(*self.viewRange()[1], padding=0)
+        if self.y_locked: constrain(view, 'y', True)
         self.update_axis_geometry()
         return key
 
@@ -225,6 +235,15 @@ class Plot(pg.PlotWidget):
 
     def physical_x_range(self):
         return [self.x_from_scene(v) for v in self.viewRange()[0]]
+
+    def physical_y_range(self, key=None):
+        bounds = self.axis_view(key).viewRange()[1]
+        return [float(10.**np.clip(v, -300, 300)) if self.log_y else v for v in bounds]
+
+    def set_physical_y_range(self, low, high, key=None):
+        self.adjusting_y = True
+        try: self.axis_view(key).setYRange(*(np.log10([low, high]) if self.log_y else [low, high]), padding=0)
+        finally: self.adjusting_y = False
 
     def set_physical_x_range(self, low, high, padding=0):
         if self.log_x:
@@ -300,6 +319,7 @@ class AnalysisPage(Q.QSplitter):
     def __init__(self, kind='time', fft_interval=None):
         super().__init__(QtCore.Qt.Orientation.Vertical)
         self.kind = 'spectrum' if kind == 'fft' else kind
+        self.x_locked = False
         self.sparameter_representation = REPRESENTATIONS[0]
         self.pending_signals = set()
         self.fft_resample = False
@@ -583,6 +603,10 @@ class Window(WorkspaceMixin, ToolsMixin, Q.QMainWindow):
         """Create the active page subplot, sidebar, controls, cursors and connections."""
         page = self.workspace
         plot = Plot(); plot.workspace = page
+        for side, dimension in (('bottom', 'x'), ('left', 'y')):
+            axis = plot.getAxis(side)
+            axis.setToolTip(f'Double-click to set the {dimension.upper()} range and scaling')
+            axis.settings_requested.connect(lambda dim=dimension: self.edit_axis(plot, dim))
         plot.scene().sigMouseClicked.connect(lambda event: self.place_cursor(plot, event))
         plot.getViewBox().color_menu = lambda pos: self.plot_color_menu(plot, pos)
         plot.getViewBox().sigYRangeChanged.connect(lambda view, bounds: self.update_annotation_labels(plot, bounds))
@@ -614,6 +638,10 @@ class Window(WorkspaceMixin, ToolsMixin, Q.QMainWindow):
         header = Q.QHBoxLayout(); header.addStretch()
         plot.log_x_box = Q.QCheckBox('Log X'); plot.log_y_box = Q.QCheckBox('Log Y')
         header.addWidget(plot.log_x_box); header.addWidget(plot.log_y_box)
+        plot.lock_x_box = Q.QCheckBox('Lock X'); plot.lock_y_box = Q.QCheckBox('Lock Y')
+        plot.lock_x_box.setToolTip('Hold the shared X range for this analysis page, including zoom, pan and fitting')
+        plot.lock_y_box.setToolTip('Hold all Y ranges in this plot, including zoom, pan and fitting')
+        header.addWidget(plot.lock_x_box); header.addWidget(plot.lock_y_box)
         clear_button = Q.QToolButton(); clear_button.setText('Clear plot')
         clear_button.setToolTip('Remove all signals from this plot')
         clear_button.clicked.connect(lambda: self.remove_signals(plot, list(plot.curves)))
@@ -644,11 +672,31 @@ class Window(WorkspaceMixin, ToolsMixin, Q.QMainWindow):
         plot.log_y_box.toggled.connect(lambda: self.set_plot_log(plot))
         plot.plotItem.ctrl.logXCheck.toggled.connect(plot.log_x_box.setChecked)
         plot.plotItem.ctrl.logYCheck.toggled.connect(plot.log_y_box.setChecked)
+        if page.x_locked and len(page.plots) > 1:
+            plot.set_physical_x_range(*page.plots[0].physical_x_range())
         if page.kind != 'time':
-            plot.log_x_box.setChecked(True)
+            plot.log_x_box.setChecked(page.plots[0].log_x if page.x_locked and len(page.plots) > 1 else True)
+        plot.lock_x_box.toggled.connect(lambda checked: self.set_scale_locks(plot, checked, plot.y_locked))
+        plot.lock_y_box.toggled.connect(lambda checked: self.set_scale_locks(plot, page.x_locked, checked))
+        if page.x_locked:
+            if len(page.plots) > 1:
+                plot.set_physical_x_range(*page.plots[0].physical_x_range())
+            self.set_scale_locks(plot, True, False)
 
-    def set_plot_log(self, plot):
+    def set_plot_log(self, plot, fit=True):
         page = plot.workspace
+        x_locked, y_locked = page.x_locked, plot.y_locked
+        x_bounds = plot.physical_x_range()
+        y_bounds = {key: plot.physical_y_range(key) for key in [None, *plot.extra_axes]}
+        if ((x_locked and plot.log_x_box.isChecked() and x_bounds[0] <= 0) or
+                (y_locked and plot.log_y_box.isChecked() and any(bounds[0] <= 0 for bounds in y_bounds.values()))):
+            with QtCore.QSignalBlocker(plot.log_x_box): plot.log_x_box.setChecked(plot.log_x)
+            with QtCore.QSignalBlocker(plot.log_y_box): plot.log_y_box.setChecked(plot.log_y)
+            with QtCore.QSignalBlocker(plot.plotItem.ctrl.logXCheck): plot.plotItem.ctrl.logXCheck.setChecked(plot.log_x)
+            with QtCore.QSignalBlocker(plot.plotItem.ctrl.logYCheck): plot.plotItem.ctrl.logYCheck.setChecked(plot.log_y)
+            self.error('Locked ranges must be positive for logarithmic scaling. Adjust the bounds by double-clicking the axis.')
+            return
+        if x_locked or y_locked: self.set_scale_locks(plot, False, False)
         page.syncing_x = True
         try:
             plot.log_x = plot.log_x_box.isChecked(); plot.log_y = plot.log_y_box.isChecked()
@@ -661,7 +709,63 @@ class Window(WorkspaceMixin, ToolsMixin, Q.QMainWindow):
         for annotation in annotations: self.draw_annotation(plot, annotation)
         self.move_cursor(0, page.cursor_positions[0], page)
         self.move_cursor(1, page.cursor_positions[1], page)
-        self.fit_plot(plot)
+        if fit: self.fit_plot(plot)
+        if x_locked: plot.set_physical_x_range(*x_bounds)
+        if y_locked:
+            for key, bounds in y_bounds.items(): plot.set_physical_y_range(*bounds, key)
+        if x_locked or y_locked: self.set_scale_locks(plot, x_locked, y_locked)
+
+    def edit_axis(self, plot, dimension, key=None):
+        """Open physical-range controls for a bottom, left or separate right axis."""
+        dialog = AxisSettingsDialog(self, plot, dimension, key)
+        self.dialogs.append(dialog)
+        dialog.destroyed.connect(lambda: self.dialogs.remove(dialog) if dialog in self.dialogs else None)
+        dialog.show()
+        return dialog
+
+    @reversible
+    def set_scale_locks(self, plot, x_locked, y_locked):
+        """Freeze linked page X ranges and the selected plot's independent Y ranges."""
+        page = plot.workspace
+        bounds = plot.physical_x_range()
+        # Clear old limits before aligning linked views or replacing a lock.
+        for other in page.plots:
+            constrain(other.getViewBox(), 'x', False)
+        was_syncing = page.syncing_x; page.syncing_x = True
+        try:
+            page.x_locked = bool(x_locked)
+            for other in page.plots:
+                if x_locked: other.set_physical_x_range(*bounds)
+                constrain(other.getViewBox(), 'x', x_locked)
+                with QtCore.QSignalBlocker(other.lock_x_box): other.lock_x_box.setChecked(x_locked)
+                other.getViewBox().setMouseEnabled(x=not x_locked, y=not other.y_locked)
+        finally: page.syncing_x = was_syncing
+        plot.y_locked = bool(y_locked)
+        for key in [None, *plot.extra_axes]: constrain(plot.axis_view(key), 'y', y_locked)
+        plot.getViewBox().setMouseEnabled(x=not x_locked, y=not y_locked)
+        with QtCore.QSignalBlocker(plot.lock_y_box): plot.lock_y_box.setChecked(y_locked)
+
+    @reversible
+    def apply_axis_settings(self, plot, dimension, key, low, high, logarithmic, locked):
+        """Apply explicit physical bounds, intentionally replacing the chosen lock."""
+        if dimension not in ('x', 'y') or not np.isfinite([low, high]).all() or low >= high:
+            raise ValueError('Enter finite bounds with minimum smaller than maximum.')
+        if logarithmic and low <= 0: raise ValueError('Logarithmic bounds must both be positive.')
+        x_locked, y_locked = plot.workspace.x_locked, plot.y_locked
+        x_bounds = plot.physical_x_range()
+        self.set_scale_locks(plot, False, False)
+        box = plot.log_x_box if dimension == 'x' else plot.log_y_box
+        changed = box.isChecked() != logarithmic
+        with QtCore.QSignalBlocker(box): box.setChecked(logarithmic)
+        if changed: self.set_plot_log(plot, fit=False)
+        if changed and dimension == 'y': self.fit_plot(plot, fit_x=False)
+        if dimension == 'x':
+            plot.set_physical_x_range(low, high)
+        else:
+            plot.set_physical_x_range(*x_bounds)
+            plot.set_physical_y_range(low, high, key)
+        self.set_scale_locks(plot, locked if dimension == 'x' else x_locked,
+                             locked if dimension == 'y' else y_locked)
 
     def sync_time_range(self, page, source, bounds):
         if page.syncing_x or source not in page.plots: return
@@ -1109,14 +1213,15 @@ class Window(WorkspaceMixin, ToolsMixin, Q.QMainWindow):
         if not signals: return
         xmin = min(s.time[0] for s in signals)
         xmax = max(s.time[-1] for s in signals)
-        self.plots[0].set_physical_x_range(xmin, xmax, padding=0.02)
+        if not self.workspace.x_locked: self.plots[0].set_physical_x_range(xmin, xmax, padding=0.02)
         for p in self.plots: self.fit_plot(p, fit_x=False)
 
     def fit_plot(self, plot, fit_x=True):
         signals = [s for i,s in plot.display_signals.items() if i not in plot.hidden_signals]
         if not signals: return
-        if fit_x:
+        if fit_x and not plot.workspace.x_locked:
             plot.set_physical_x_range(min(s.time[0] for s in signals), max(s.time[-1] for s in signals), padding=0.02)
+        if plot.y_locked: return
         for key in [None, *plot.extra_axes]:
             bounds = []
             for index in plot.curves:

@@ -27,9 +27,11 @@ class WorkspaceMixin:
                 plots.append(dict(hidden=[i for i in p.curves if i in p.hidden_signals], names={i:name for i,name in p.signal_names.items() if i in p.curves}, ids=list(p.curves), colors={i: pg.mkPen(c.opts['pen']).color().name() for i,c in p.curves.items()},
                                   axes=dict(p.signal_axes), ranges={k: p.axis_view(k).viewRange()[1][:] for k in [None,*p.extra_axes]},
                                   x=p.physical_x_range(), log=[p.log_x,p.log_y], background=p.backgroundBrush().color().name(),
+                                  y_locked=p.y_locked,
                                   annotations=list(getattr(p, 'annotations', [])), sizes=p.panel.sizes()))
             pages.append(dict(title=self.tabs.tabText(n), kind=page.kind, interval=page.fft_interval,
                               representation=page.sparameter_representation,
+                              x_locked=page.x_locked,
                               pending=list(page.pending_signals), resample=page.fft_resample, sample_rate=page.fft_sample_rate,
                               cursors=list(page.cursor_positions), visible=page.cursors_visible, zoom=page.zoom_mode,
                               sizes=page.plot_splitter.sizes(), plots=plots))
@@ -97,6 +99,10 @@ class WorkspaceMixin:
                     for key,bounds in spec['ranges'].items():
                         p.axis_view(None if key is None else groups[key]).setYRange(*bounds,padding=0)
                     p.panel.setSizes(spec['sizes'])
+                    self.set_scale_locks(p, False, spec.get('y_locked', False))
+                if page.plots:
+                    self.set_scale_locks(page.plots[0], saved.get('x_locked', False), page.plots[0].y_locked)
+                else: page.x_locked = saved.get('x_locked', False)
                 page.pending_signals = {remap[i] for i in saved.get('pending', [])}
                 page.plot_splitter.setSizes(saved['sizes'])
                 page.cursors_visible = saved['visible']

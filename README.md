@@ -20,6 +20,7 @@ Start with the [step-by-step user guide](docs/USER_GUIDE.md). Contributors can f
 - Multiple analysis tabs and resizable subplots with linked horizontal axes.
 - Shared or separate Y axes, configurable curve colors and plot backgrounds.
 - Mouse-wheel and rectangle zoom, panning, and fit-to-data controls.
+- Double-click axis settings with manual physical bounds and independent X/Y range locks.
 - Differential cursors for time, frequency and amplitude measurements.
 - ESRP receiver MAT spectra (`freq`, `avg`, `peak`, `qpk`) open directly in a Spectrum tab.
 - Keysight HDF5 scope waveforms with integer scaling and floating-sample support.
