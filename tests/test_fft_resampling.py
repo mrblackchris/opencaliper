@@ -6,7 +6,8 @@ import tempfile
 import unittest
 from unittest.mock import patch
 import numpy as np
-from PySide6 import QtWidgets as Q
+from PySide6 import QtCore, QtGui, QtWidgets as Q
+from PySide6.QtTest import QTest
 from opencaliper import Signal, Recording, export
 from opencaliper.analysis import fft
 from opencaliper.gui import Window
@@ -110,3 +111,36 @@ class ResampleGuiTests(unittest.TestCase):
             self.assertEqual(main(['fft',str(source),str(destination),'--resample','--sample-rate','1024']),0)
             result=np.loadtxt(destination,delimiter=',',skiprows=1)
             self.assertAlmostEqual(result[np.argmax(result[:,1]),0],64)
+
+    def test_visible_checkbox_and_one_click_retry_after_nonuniform_fft_failure(self):
+        w = self.w; w.resize(1050, 700); w.show()
+        with patch.object(w, 'error'): page = w.spectrum()
+        self.app.processEvents()
+        self.assertTrue(page.resample_box.isEnabled())
+        self.assertTrue(page.resample_retry.isVisible())
+        self.assertIn('uniform samples', page.fft_problem.text())
+        # Plot/readout dividers cannot collapse the settings above them.
+        page.content_splitter.moveSplitter(0, 1); self.app.processEvents()
+        center = page.resample_box.mapToGlobal(QtCore.QPoint(8, page.resample_box.height()//2))
+        self.assertIs(Q.QApplication.widgetAt(center), page.resample_box)
+        QTest.mouseClick(page.resample_box, QtCore.Qt.MouseButton.LeftButton,
+                         pos=QtCore.QPoint(8, page.resample_box.height()//2))
+        self.assertTrue(page.resample_box.isChecked()); self.assertTrue(page.sample_rate.isEnabled())
+        page.resample_box.setChecked(False)
+        time, values = self.source.time.copy(), self.source.values.copy()
+        with patch.object(w, 'error', side_effect=AssertionError):
+            QTest.mouseClick(page.resample_retry, QtCore.Qt.MouseButton.LeftButton)
+        self.assertTrue(page.fft_resample); self.assertFalse(page.pending_signals)
+        self.assertFalse(page.resample_retry.isVisible()); self.assertFalse(page.fft_problem.isVisible())
+        spectrum = page.plots[0].display_signals[0]
+        self.assertAlmostEqual(spectrum.time[np.argmax(spectrum.values)], 64, delta=.3)
+        np.testing.assert_array_equal(self.source.time, time)
+        np.testing.assert_array_equal(self.source.values, values)
+
+    def test_settings_remain_visible_with_large_font(self):
+        font = QtGui.QFont(self.w.font()); font.setPointSize(28)
+        self.w.setFont(font); self.w.resize(1200, 800); self.w.show()
+        page = self.w.add_analysis('spectrum'); self.app.processEvents()
+        for control in (page.resample_box, page.sample_rate, page.recalculate):
+            self.assertTrue(page.fft_settings.rect().contains(control.mapTo(page.fft_settings, control.rect().bottomRight())))
+        self.assertGreaterEqual(page.fft_settings.height(), page.fft_settings.minimumSizeHint().height())

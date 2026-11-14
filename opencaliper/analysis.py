@@ -76,7 +76,7 @@ def fft(signal, start=None, stop=None, *, resample=False, sample_rate=None):
     else:
         spacing = dt[0]
         if not np.allclose(dt, spacing, rtol=1e-4, atol=abs(spacing)*1e-8):
-            raise ValueError('FFT needs uniform samples. Enable “Resample (linear)” in the FFT tab, '
+            raise ValueError('FFT needs uniform samples. Enable “Resample (linear)” at the top of the Spectrum tab, '
                              'choose a sample rate (or Auto), then click Recalculate')
     window = np.hanning(len(y))
     amplitude = np.abs(np.fft.rfft((y-y.mean())*window))*2/window.sum()

@@ -311,13 +311,17 @@ class Plot(pg.PlotWidget):
         else: event.ignore()
 
 
-class AnalysisPage(Q.QSplitter):
+class AnalysisPage(Q.QWidget):
     """One analysis tab owning plots, cursor positions and navigation state.
     
     kind selects time, spectrum or sparameter (legacy fft maps to spectrum). fft_interval holds source seconds while
     cursor_positions holds displayed Hz. Neither state belongs to another tab."""
     def __init__(self, kind='time', fft_interval=None):
-        super().__init__(QtCore.Qt.Orientation.Vertical)
+        super().__init__()
+        self.page_layout = Q.QVBoxLayout(self)
+        self.page_layout.setContentsMargins(0, 0, 0, 0)
+        self.content_splitter = Q.QSplitter(QtCore.Qt.Orientation.Vertical)
+        self.page_layout.addWidget(self.content_splitter, 1)
         self.kind = 'spectrum' if kind == 'fft' else kind
         self.x_locked = False
         self.sparameter_representation = REPRESENTATIONS[0]
@@ -335,12 +339,12 @@ class AnalysisPage(Q.QSplitter):
         self.plot_splitter = Q.QSplitter(QtCore.Qt.Orientation.Vertical)
         self.plot_splitter.setChildrenCollapsible(False)
         self.plot_splitter.setHandleWidth(8)
-        self.addWidget(self.plot_splitter)
+        self.content_splitter.addWidget(self.plot_splitter)
         self.readout = Q.QPlainTextEdit()
         self.readout.setReadOnly(True); self.readout.setMaximumHeight(160)
-        self.addWidget(self.readout)
-        self.setStretchFactor(0, 1); self.setStretchFactor(1, 0)
-        self.setSizes([650, 110])
+        self.content_splitter.addWidget(self.readout)
+        self.content_splitter.setStretchFactor(0, 1); self.content_splitter.setStretchFactor(1, 0)
+        self.content_splitter.setSizes([650, 110])
         if self.kind == 'sparameter':
             settings = Q.QWidget(); row = Q.QHBoxLayout(settings)
             row.addWidget(Q.QLabel('S-parameter view:'))
@@ -348,19 +352,21 @@ class AnalysisPage(Q.QSplitter):
             row.addWidget(self.representation)
             self.smith_button = Q.QPushButton('Smith chart…'); row.addWidget(self.smith_button)
             row.addStretch()
-            settings.setMaximumHeight(60); self.insertWidget(0, settings)
-            self.setStretchFactor(0, 0); self.setStretchFactor(1, 1); self.setStretchFactor(2, 0)
-            self.setSizes([50, 650, 110])
+            self.page_layout.insertWidget(0, settings)
         if self.kind == 'spectrum':
             settings = Q.QWidget(); settings_layout = Q.QVBoxLayout(settings)
+            self.fft_settings = settings
+            description = Q.QLabel('Time-channel FFT: Hann · Mean removed · Peak amplitude')
+            description.setWordWrap(True); settings_layout.addWidget(description)
             row = Q.QHBoxLayout(); settings_layout.addLayout(row)
-            row.addWidget(Q.QLabel('Time-channel FFT: Hann · Mean removed · Peak amplitude'))
             self.use_interval = Q.QCheckBox('Time interval')
             self.use_interval.setChecked(self.fft_interval[0] is not None)
             row.addWidget(self.use_interval)
             self.start_time = Q.QDoubleSpinBox(); self.stop_time = Q.QDoubleSpinBox()
             for field, value in zip((self.start_time, self.stop_time), self.fft_interval):
                 field.setDecimals(12); field.setRange(-1e15, 1e15)
+                field.setSizePolicy(Q.QSizePolicy.Policy.Ignored, Q.QSizePolicy.Policy.Fixed)
+                field.setMinimumWidth(80)
                 field.setSuffix(' s'); field.setValue(value or 0.)
                 field.setEnabled(self.use_interval.isChecked())
                 self.use_interval.toggled.connect(field.setEnabled)
@@ -371,19 +377,22 @@ class AnalysisPage(Q.QSplitter):
             resampling.addWidget(self.resample_box)
             self.sample_rate = Q.QDoubleSpinBox(); self.sample_rate.setDecimals(6)
             self.sample_rate.setRange(0, 1e12); self.sample_rate.setSpecialValueText('Auto (median interval)')
+            self.sample_rate.setSizePolicy(Q.QSizePolicy.Policy.Ignored, Q.QSizePolicy.Policy.Fixed)
+            self.sample_rate.setMinimumWidth(100)
             self.sample_rate.setSuffix(' Hz'); self.sample_rate.setEnabled(False)
             self.sample_rate.setToolTip('Auto uses the reciprocal median interval for each selected source. Interpolation adds no bandwidth and does not filter aliasing.')
             self.resample_box.toggled.connect(self.sample_rate.setEnabled)
             resampling.addWidget(Q.QLabel('Sample rate:'))
-            resampling.addWidget(self.sample_rate)
-            resampling.addStretch()
+            resampling.addWidget(self.sample_rate, 1)
             self.recalculate = Q.QPushButton('Recalculate')
             self.recalculate.setToolTip('Apply the interval and resampling settings to all spectra in this tab')
             resampling.addWidget(self.recalculate)
-            settings.setMaximumHeight(110)
-            self.insertWidget(0, settings)
-            self.setStretchFactor(0, 0); self.setStretchFactor(1, 1); self.setStretchFactor(2, 0)
-            self.setSizes([85, 650, 110])
+            self.fft_problem = Q.QLabel(); self.fft_problem.setWordWrap(True)
+            self.fft_problem.hide(); settings_layout.addWidget(self.fft_problem)
+            self.resample_retry = Q.QPushButton('Enable resampling and recalculate')
+            self.resample_retry.hide(); settings_layout.addWidget(self.resample_retry)
+            settings.setSizePolicy(Q.QSizePolicy.Policy.Expanding, Q.QSizePolicy.Policy.Maximum)
+            self.page_layout.insertWidget(0, settings)
 
 
 class Window(WorkspaceMixin, ToolsMixin, Q.QMainWindow):
@@ -474,6 +483,7 @@ class Window(WorkspaceMixin, ToolsMixin, Q.QMainWindow):
         if kind == 'spectrum':
             page.cursors_visible = True
             page.recalculate.clicked.connect(lambda: self.recalculate_fft(page))
+            page.resample_retry.clicked.connect(lambda: self.retry_resampled_fft(page))
         if kind == 'sparameter':
             page.representation.currentTextChanged.connect(lambda text: self.set_sparameter_representation(page, text))
             page.smith_button.clicked.connect(lambda: self.show_smith_chart(page))
@@ -919,6 +929,7 @@ class Window(WorkspaceMixin, ToolsMixin, Q.QMainWindow):
         except ValueError as exc:
             if plot.workspace.kind == 'spectrum' and self.signals[index].domain == 'time':
                 plot.workspace.pending_signals.add(index)
+                self.show_fft_problem(plot.workspace, f'{self.signals[index].name}: {exc}')
             self.error(f'{self.signals[index].name}: {exc}' +
                        ('\nFor a short interval, change or disable Time interval. For uneven timestamps, enable Resample (linear). Then click Recalculate.'
                         if plot.workspace.kind == 'spectrum' and self.signals[index].domain == 'time' else ''))
@@ -1172,6 +1183,7 @@ class Window(WorkspaceMixin, ToolsMixin, Q.QMainWindow):
             for index in indices:
                 calculated[index] = self.transformed_signal(index, page, interval, resample=resample, sample_rate=rate)
         except ValueError as exc:
+            self.show_fft_problem(page, f'{self.signals[index].name}: {exc}')
             self.error(f'{self.signals[index].name}: {exc}')
             return
         page.fft_interval = interval
@@ -1185,7 +1197,18 @@ class Window(WorkspaceMixin, ToolsMixin, Q.QMainWindow):
         if page.pending_signals and page.plots:
             for index in list(page.pending_signals):
                 self.add_signal(index, page.plots[0])
+        page.fft_problem.clear(); page.fft_problem.hide(); page.resample_retry.hide()
         self.update_readout(page)
+
+    def show_fft_problem(self, page, message):
+        """Keep retry instructions visible beside the accessible Spectrum controls."""
+        page.fft_problem.setText(message); page.fft_problem.show()
+        page.resample_retry.setVisible('FFT needs uniform samples' in message)
+
+    def retry_resampled_fft(self, page):
+        """Apply explicit user consent to interpolation and retry pending time traces."""
+        page.resample_box.setChecked(True)
+        self.recalculate_fft(page)
 
     def save(self):
         """Export all loaded source channels, independent of plot visibility or FFT display."""

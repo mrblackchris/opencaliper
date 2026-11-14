@@ -17,6 +17,8 @@ Start with the [step-by-step user guide](docs/USER_GUIDE.md). Contributors can f
 - Per-plot visibility checkboxes and Space-key toggles, saved with workspaces.
 - Scientific cursor readouts and a packaged window/taskbar icon.
 - File-based Variable Explorer with filtering and drag-and-drop signal selection.
+- CSV delimiter/header detection, including metadata before numeric samples;
+  MAT imports also accept paired `Signal1_u`/`Signal1_t` or `Signal1_u`/`Signal1_f` vectors.
 - Multiple analysis tabs and resizable subplots with linked horizontal axes.
 - Shared or separate Y axes, configurable curve colors and plot backgrounds.
 - Mouse-wheel and rectangle zoom, panning, and fit-to-data controls.
@@ -258,7 +260,8 @@ The [converter guide](opencaliper/converterscripts/README.md) documents the expe
 | File type | Import | Export |
 | --- | --- | --- |
 | NumPy `.npy` (time column followed by channel columns) | Yes, memory-mapped | No |
-| MATLAB `.mat` (documented acquisition and OpenCaliper layouts) | Yes | Yes |
+| MATLAB `.mat` (acquisition, native, paired vectors and receiver spectra) | Yes | Yes |
+| CSV `.csv` (shared axis or named signal pairs, optional headers/metadata) | Yes | No; convert to native MAT |
 | MDF `.mdf` / `.mf4` | Yes | Yes |
 | Keysight `.bin` | Yes | No |
 | Keysight Infiniium `.h5` / `.hdf5` | Yes, normal/average unsegmented analog waveforms | No |

@@ -17,6 +17,7 @@ class Format:
 
 FORMATS = {
     '.mat': Format('MAT', 'matconvert', 'matexport'),
+    '.csv': Format('CSV table', 'csvconvert'),
     '.mdf': Format('MDF 3', 'mdfconvert', 'mdfexport'),
     '.mf4': Format('MDF 4', 'mdfconvert', 'mdfexport'),
     '.raw': Format('LTspice RAW', 'rawconvert', 'rawexport'),

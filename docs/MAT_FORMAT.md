@@ -80,6 +80,44 @@ plot(t, m.Channel1_t1);
 xlabel('Time (s)'); ylabel(m.Channel1_unit);
 ```
 
+## Named amplitude/time/frequency pairs
+
+MAT import also supports top-level vectors named `PREFIX_u` and exactly one of
+`PREFIX_t` or `PREFIX_f`. For example:
+
+```matlab
+Signal1_t = [0, 0.001, 0.002];
+Signal1_u = [1.2, 1.4, 1.3];
+Signal1_unit = 'V';
+Signal2_f = [1e6, 2e6, 3e6];
+Signal2_u = [-40, -35, -45];
+Signal2_unit = 'dBm';
+save('paired.mat', 'Signal1_t', 'Signal1_u', 'Signal1_unit', ...
+     'Signal2_f', 'Signal2_u', 'Signal2_unit');
+```
+
+`_u` is the amplitude vector, `_t` is seconds, and `_f` is Hz. Any prefix is
+accepted, not only Signal1. Each pair may have a different length/axis; row and
+column vectors are accepted in classic and v7.3 MAT files. Complex amplitudes
+are retained. Numeric matrices are rejected instead of flattened ambiguously.
+
+Names default to the prefix; optional `PREFIX_name` overrides it, and
+`PREFIX_unit` describes the amplitude unit without changing its scale. Optional
+`PREFIX_t_unit` or `PREFIX_f_unit` accepts the axis units listed in the
+[CSV guide](CSV_FORMAT.md#shared-horizontal-axis), with conversion to seconds/Hz.
+Missing or malformed acquisition dates still default quietly to the epoch.
+Each prefix must have exactly one axis: both `_t` and `_f`, or neither, is an
+error. Amplitude/axis lengths must match. Time/frequency axes must be finite,
+real and nondecreasing; frequency values must be nonnegative.
+
+[matpreparse.py](../opencaliper/converterscripts/matpreparse.py) inspects the MAT
+variables before decoding. Existing acquisition, ESRP and native OpenCaliper
+layouts remain supported. A file containing multiple recognized layouts imports
+all their channels, in native, paired, receiver, acquisition order; malformed
+recognized data produces an error rather than a partial import. Paired signal
+prefixes are ordered naturally (Signal2 before Signal10). Time signals appear
+in the explorer for Time Analysis; frequency signals plot directly in Spectrum.
+
 ## OpenCaliper MAT exports
 
 MAT export uses an additional interchange layout that preserves arbitrary channel names and independent time vectors. Each channel has `signal_0_name`, `signal_0_unit`, `signal_0_time`, `signal_0_domain`, and `signal_0_values`; subsequent channels use indices 1, 2, and so on. `signal_0_domain` is `time` (default if absent, horizontal values in seconds) or `frequency` (horizontal values in Hz). `recording_timestamp` stores an ISO timestamp. OpenCaliper can read these files back. This export layout differs from the shared-time-base acquisition convention demonstrated by `examples/example.py`.

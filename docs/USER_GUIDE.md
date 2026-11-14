@@ -238,6 +238,13 @@ preprocessing before this real-valued FFT.
 For **uneven timestamps**, enable **Resample (linear)** in the Spectrum tab, leave
 **Sample rate** at **Auto (median interval)** or enter a rate in Hz, and click
 **Recalculate**. This also retries channels that failed to appear initially.
+
+FFT controls are pinned above the plots and cannot be collapsed by dragging the
+plot/readout divider. If uneven samples prevent a trace from appearing, dismiss
+the error message and click **Enable resampling and recalculate** in that
+Spectrum tab. This explicitly enables linear interpolation and retries pending
+signals using the selected rate (Auto by default). You can also check
+**Resample (linear)** manually, adjust the rate, then click **Recalculate**.
 Auto chooses the reciprocal median time interval separately for each source in
 the selected interval. A specified rate applies to every channel in the tab.
 The setting is saved in workspaces and follows duplicated Spectrum tabs.

@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Keep Spectrum FFT controls visible outside collapsible plot splitters, remove
+  fixed-height clipping and offer a direct resampling retry for uneven timestamps.
+
+- CSV import with delimiter/header/metadata detection, units, missing amplitudes
+  and shared or independently paired time/frequency columns.
+- MAT pre-parser supports PREFIX_u + PREFIX_t/PREFIX_f alongside existing layouts,
+  including mixed-layout files and complex frequency samples.
+
 - Double-click axis dialogs for manual bounds and logarithmic scaling, with shared
   X locks and per-plot Y locks preserved in workspaces and undo history.
 

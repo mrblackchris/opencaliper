@@ -69,6 +69,19 @@ def self_test(report):
                                 format='7.3',appendmat=False)
             np.testing.assert_allclose(load(path).signals[0].values,source.signals[0].values)
             checked.append('mat-v7.3')
+            path = folder/'paired.mat'
+            savemat(path, dict(Signal1_t=time, Signal1_u=source.signals[0].values,
+                               Signal2_f=[1e6, 2e6], Signal2_u=[-40., -30.]))
+            paired = load(path)
+            assert [s.domain for s in paired.signals] == ['time', 'frequency']
+            np.testing.assert_allclose(paired.signals[0].values, source.signals[0].values)
+            checked.append('mat-paired')
+            path = folder/'scope.csv'
+            path.write_text('Time [ms];Voltage [V]\nMeasurement comment\n0,0;1,25\n2,5;2,75\n', encoding='utf-8')
+            csv_recording = load(path)
+            np.testing.assert_allclose(csv_recording.signals[0].time, [0., .0025])
+            np.testing.assert_allclose(csv_recording.signals[0].values, [1.25, 2.75])
+            checked.append('csv')
             import h5py
             path = folder/'scope.h5'
             with h5py.File(path, 'w') as file:

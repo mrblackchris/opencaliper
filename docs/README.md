@@ -14,6 +14,7 @@ Start here depending on what you want to do:
 | Generate a browsable API reference and architecture drawings | [Doxygen](DOXYGEN.md) |
 | Run the Python API, debug or implement a change | [Developer guide](DEVELOPMENT.md) |
 | Create compatible input files | [MAT format](MAT_FORMAT.md) and [example generator](../examples/example.py) |
+| Import CSV with headers, metadata or independent signal axes | [CSV format](CSV_FORMAT.md) |
 | Convert files or add a file format | [Converter scripts and adapter contract](../opencaliper/converterscripts/README.md) |
 | Contribute a fix | [Contributing](../CONTRIBUTING.md) |
 | Build a single-file Windows EXE | [Windows executable guide](../bundle/README.md) |

@@ -38,7 +38,10 @@ in its header. These conversions do not preserve every device-specific field.
 | --- | --- |
 | `convert.py` | `detect_format`, `load`, `export`, `convert_file`, terminal entry point |
 | `formats.py` | Registry mapping extensions to reader/exporter modules; GUI filters |
-| `matconvert.py` | `read(path)`: acquisition and native OpenCaliper MAT |
+| `matconvert.py` | `read(path)`: pre-parse and decode all supported MAT layouts |
+| `matpreparse.py` | Detect native, paired-vector, receiver and acquisition layouts from MAT variables |
+| `pairedconvert.py` | Decode PREFIX_u with PREFIX_t/PREFIX_f; shared vector/unit validation |
+| `csvconvert.py` | `read(path)`: detect CSV delimiters, headers/metadata and shared/paired axes |
 | `esrpconvert.py` | ESRP receiver `freq`/`avg`/`peak`/`qpk` (`pk` legacy alias) MAT spectra; selected by `matconvert.py` from contents |
 | `mdfconvert.py` | `read(path)`: MDF/MF4 numeric scalar channels |
 | `wvfconvert.py` | `read(path)`: Yokogawa single-block IS2 WVF/HDR |
@@ -57,6 +60,17 @@ MDF 3 and MDF 4 share adapters because the asammdf library handles both. Optiona
 format-specific libraries are imported inside adapters, not by the registry.
 Existing `opencaliper.load()` and `opencaliper.export()` remain supported and route
 through `convert.py`.
+
+CSV import accepts common delimiters, optional headers/units and leading
+measurement names/comments, including data starting on row three. It supports
+one shared time/frequency axis or explicit independent PREFIX_u/PREFIX_t/PREFIX_f
+columns. See the [CSV layout guide](../../docs/CSV_FORMAT.md).
+
+MAT storage is decoded first, then `matpreparse.detect_layouts()` identifies its
+signal schemas. `pairedconvert.read_data()` imports PREFIX_u amplitudes with
+exactly one corresponding PREFIX_t (seconds) or PREFIX_f (Hz) vector. Existing
+native, receiver and acquisition layouts remain supported, including files
+containing multiple layouts. See the [MAT guide](../../docs/MAT_FORMAT.md#named-amplitudetimefrequency-pairs).
 
 AC RAW files with a `frequency` axis load as Hz-based frequency-domain channels,
 preserving complex voltage/current samples. Spectrum pages display their linear
