@@ -1,5 +1,10 @@
 # CSV import
 
+EMC receiver exports with Frequency, QPK Level, PK+ Level and AVG Level columns
+plus a unit row are recognized separately. Categorical metadata such as
+Polarization and Comment is ignored, while detector levels and their units are
+preserved. See the [Converter window guide](CONVERTER_WINDOW.md#supplied-emc-receiver-csv).
+
 Open `.csv` files with **Open files**, drag them into the viewer or use the
 conversion dispatcher. CSV import is read-only; convert to native MAT or save a
 workspace to retain imported channels.

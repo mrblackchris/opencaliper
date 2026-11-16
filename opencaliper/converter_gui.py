@@ -1,0 +1,223 @@
+"""File conversion queue with selectable Python readers and paired MAT output."""
+from pathlib import Path
+from PySide6 import QtCore, QtWidgets as Q
+from .converterscripts import conversion
+
+
+class FileTable(Q.QTableWidget):
+    """Queue accepting any local file type, including unregistered custom formats."""
+    files_dropped = QtCore.Signal(list)
+
+    def __init__(self):
+        super().__init__(0, 3)
+        self.setHorizontalHeaderLabels(['Input file', 'Status', 'Output MAT file'])
+        self.setAcceptDrops(True); self.setDragDropMode(Q.QAbstractItemView.DragDropMode.DropOnly)
+        self.setSelectionBehavior(Q.QAbstractItemView.SelectionBehavior.SelectRows)
+        self.setEditTriggers(Q.QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.horizontalHeader().setSectionResizeMode(Q.QHeaderView.ResizeMode.Stretch)
+
+    def dragEnterEvent(self, event):
+        if self.isEnabled() and event.mimeData().hasUrls(): event.acceptProposedAction()
+        else: event.ignore()
+
+    def dragMoveEvent(self, event): self.dragEnterEvent(event)
+
+    def dropEvent(self, event):
+        if self.isEnabled() and event.mimeData().hasUrls():
+            self.files_dropped.emit([u.toLocalFile() for u in event.mimeData().urls() if u.isLocalFile()])
+            event.acceptProposedAction()
+        else: event.ignore()
+
+
+class ConversionWorker(QtCore.QThread):
+    """Decode/write sequentially off the UI thread; cancellation is between files."""
+    result = QtCore.Signal(int, str, str)
+
+    def __init__(self, jobs, converter, overwrite, parent=None):
+        super().__init__(parent)
+        self.jobs, self.converter, self.overwrite = jobs, converter, overwrite
+
+    def run(self):
+        for row, (source, target) in enumerate(self.jobs):
+            if self.isInterruptionRequested(): break
+            self.result.emit(row, 'Converting…', '')
+            try:
+                path = conversion.convert_one(source, target, self.converter, self.overwrite)
+                self.result.emit(row, 'Converted', str(path))
+            except (Exception, SystemExit) as exc:
+                self.result.emit(row, f'Error: {exc}', '')
+
+
+class ConverterDialog(Q.QDialog):
+    """Choose files, an adapter and an output folder, then optionally load results."""
+    files_ready = QtCore.Signal(list)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle('Converter — paired MAT files'); self.resize(1000, 650)
+        self.setAttribute(QtCore.Qt.WidgetAttribute.WA_DeleteOnClose)
+        self.worker = None; self.busy = False; self.outputs = []; self.paths = []
+        self.folder = conversion.converter_folder()
+        layout = Q.QVBoxLayout(self)
+        layout.addWidget(Q.QLabel('Add or drop files, select a converter, then create compatible SignalN_u + SignalN_t / SignalN_f MAT files.'))
+        buttons = Q.QHBoxLayout(); layout.addLayout(buttons)
+        self.add_button = Q.QPushButton('Add files…'); self.remove_button = Q.QPushButton('Remove selected')
+        self.clear_button = Q.QPushButton('Clear list')
+        for button in (self.add_button, self.remove_button, self.clear_button): buttons.addWidget(button)
+        buttons.addStretch()
+        self.table = FileTable(); layout.addWidget(self.table, 1)
+        self.table.files_dropped.connect(self.add_files)
+        self.add_button.clicked.connect(self.choose_files)
+        self.remove_button.clicked.connect(self.remove_selected)
+        self.clear_button.clicked.connect(self.clear_files)
+        form = Q.QFormLayout(); layout.addLayout(form)
+        self.converter = Q.QComboBox(); self.converter.setMinimumContentsLength(30)
+        self.script_button = Q.QPushButton('Choose .py script…')
+        self.refresh_button = Q.QPushButton('Refresh')
+        selection = Q.QHBoxLayout(); selection.addWidget(self.converter, 1)
+        selection.addWidget(self.script_button); selection.addWidget(self.refresh_button)
+        form.addRow('Converter:', selection)
+        self.script_path = Q.QLabel(''); self.script_path.setWordWrap(True); form.addRow(self.script_path)
+        self.output_folder = Q.QLineEdit(); self.output_folder.setPlaceholderText('Blank: save beside each input file')
+        self.output_button = Q.QPushButton('Output folder…')
+        output = Q.QHBoxLayout(); output.addWidget(self.output_folder, 1); output.addWidget(self.output_button)
+        form.addRow('Save to:', output)
+        self.overwrite = Q.QCheckBox('Replace existing output files'); form.addRow(self.overwrite)
+        tools = Q.QHBoxLayout(); layout.addLayout(tools)
+        self.folder_button = Q.QPushButton('Converter scripts folder…')
+        self.template_button = Q.QPushButton('Create converter template…')
+        tools.addWidget(self.folder_button); tools.addWidget(self.template_button); tools.addStretch()
+        self.progress = Q.QProgressBar(); self.progress.setRange(0, 1); self.progress.setValue(0); layout.addWidget(self.progress)
+        self.status = Q.QLabel('Drop files into the list to begin.'); self.status.setWordWrap(True); layout.addWidget(self.status)
+        actions = Q.QHBoxLayout(); layout.addLayout(actions)
+        self.convert_button = Q.QPushButton('Convert to MAT'); self.cancel_button = Q.QPushButton('Cancel conversion')
+        self.load_button = Q.QPushButton('Load converted files'); self.close_button = Q.QPushButton('Close')
+        self.cancel_button.setEnabled(False); self.load_button.setEnabled(False)
+        for button in (self.convert_button, self.cancel_button, self.load_button, self.close_button): actions.addWidget(button)
+        self.convert_button.clicked.connect(self.start)
+        self.cancel_button.clicked.connect(self.cancel_conversion)
+        self.load_button.clicked.connect(lambda: self.files_ready.emit(list(self.outputs)))
+        self.close_button.clicked.connect(self.close)
+        self.script_button.clicked.connect(self.choose_script)
+        self.refresh_button.clicked.connect(self.refresh)
+        self.output_button.clicked.connect(self.choose_output)
+        self.folder_button.clicked.connect(self.choose_converter_folder)
+        self.template_button.clicked.connect(self.create_template)
+        self.converter.currentIndexChanged.connect(self.describe_converter)
+        self.refresh()
+        self.convert_button.setEnabled(False)
+
+    def refresh(self):
+        selected = self.converter.currentData()
+        self.converter.clear()
+        for converter in conversion.discover(self.folder): self.converter.addItem(converter.name, converter)
+        index = self.converter.findData(selected)
+        self.converter.setCurrentIndex(max(0, index)); self.describe_converter()
+
+    def describe_converter(self):
+        converter = self.converter.currentData()
+        if converter is None: return
+        if converter.script: text = str(converter.script)
+        elif converter.module: text = f'Built-in: converterscripts/{converter.module}.py'
+        else: text = 'Select by file extension. Choose a Python script for an unregistered format.'
+        self.script_path.setText(text)
+
+    def add_files(self, paths):
+        if self.busy: return
+        for value in paths:
+            path = Path(value).resolve()
+            if not path.is_file(): self.status.setText(f'Not a file: {path}'); continue
+            if path in self.paths: continue
+            row = self.table.rowCount(); self.table.insertRow(row); self.paths.append(path)
+            for column, text in enumerate((str(path), 'Ready', '')):
+                item = Q.QTableWidgetItem(text); item.setToolTip(text); self.table.setItem(row, column, item)
+        self.convert_button.setEnabled(bool(self.paths))
+
+    def choose_files(self):
+        paths, _ = Q.QFileDialog.getOpenFileNames(self, 'Files to convert', '', 'All files (*)')
+        self.add_files(paths)
+
+    def remove_selected(self):
+        if self.busy: return
+        for row in sorted({i.row() for i in self.table.selectedIndexes()}, reverse=True):
+            self.table.removeRow(row); self.paths.pop(row)
+        self.convert_button.setEnabled(bool(self.paths))
+
+    def clear_files(self):
+        if self.busy: return
+        self.paths.clear(); self.table.setRowCount(0); self.outputs.clear(); self.load_button.setEnabled(False)
+        self.convert_button.setEnabled(False)
+
+    def choose_script(self):
+        path, _ = Q.QFileDialog.getOpenFileName(self, 'Choose converter script', str(self.folder), 'Python converter (*.py)')
+        if path: self.select_script(path)
+
+    def select_script(self, path):
+        converter = conversion.Converter(Path(path).name, script=Path(path).resolve())
+        index = self.converter.findData(converter)
+        if index < 0: self.converter.addItem(converter.name, converter); index = self.converter.count()-1
+        self.converter.setCurrentIndex(index)
+
+    def choose_output(self):
+        folder = Q.QFileDialog.getExistingDirectory(self, 'Output folder', self.output_folder.text())
+        if folder: self.output_folder.setText(folder)
+
+    def choose_converter_folder(self):
+        folder = Q.QFileDialog.getExistingDirectory(self, 'Folder containing custom converter scripts', str(self.folder))
+        if folder: self.folder = Path(folder); self.refresh()
+
+    def create_template(self):
+        path, _ = Q.QFileDialog.getSaveFileName(self, 'Create converter template', str(self.folder/'my_converter.py'), 'Python converter (*.py)')
+        if not path: return
+        try:
+            conversion.create_template(path); self.folder = Path(path).parent; self.refresh(); self.select_script(path)
+            self.status.setText(f'Template created at {path}. Edit read(path), save it, then select input files and convert.')
+        except Exception as exc: self.status.setText(f'Cannot create template: {exc}')
+
+    def set_busy(self, busy):
+        self.busy = busy
+        for widget in (self.table, self.add_button, self.remove_button, self.clear_button,
+                       self.converter, self.script_button, self.refresh_button, self.output_folder,
+                       self.output_button, self.overwrite, self.folder_button, self.template_button, self.close_button):
+            widget.setEnabled(not busy)
+        self.convert_button.setEnabled(not busy and bool(self.paths))
+        self.cancel_button.setEnabled(busy); self.load_button.setEnabled(not busy and bool(self.outputs))
+
+    def start(self):
+        if self.busy or not self.paths: return
+        folder = self.output_folder.text().strip()
+        try:
+            if folder and not Path(folder).is_dir(): raise ValueError('Choose an existing output folder')
+            jobs = conversion.plan(self.paths, folder or None)
+        except Exception as exc: self.status.setText(str(exc)); return
+        self.outputs.clear(); self.progress.setRange(0, len(jobs)); self.progress.setValue(0)
+        for row, (_, target) in enumerate(jobs):
+            self.table.item(row, 1).setText('Queued'); self.table.item(row, 2).setText(str(target))
+        self.set_busy(True); self.status.setText('Converting… Cancellation takes effect after the current file.')
+        self.worker = ConversionWorker(jobs, self.converter.currentData(), self.overwrite.isChecked(), self)
+        self.worker.result.connect(self.update_result)
+        self.worker.finished.connect(self.conversion_finished)
+        self.worker.start()
+
+    def update_result(self, row, status, output):
+        self.table.item(row, 1).setText(status); self.table.item(row, 1).setToolTip(status)
+        if output: self.outputs.append(output)
+        if status != 'Converting…': self.progress.setValue(row+1)
+
+    def conversion_finished(self):
+        for row in range(self.table.rowCount()):
+            if self.table.item(row, 1).text() == 'Queued': self.table.item(row, 1).setText('Cancelled')
+        self.worker.deleteLater(); self.worker = None; self.set_busy(False)
+        self.status.setText(f'{len(self.outputs)} of {len(self.paths)} files converted. Select Load converted files to view the results.')
+
+    def cancel_conversion(self):
+        if self.worker:
+            self.worker.requestInterruption(); self.cancel_button.setEnabled(False)
+            self.status.setText('Cancellation requested; finishing the current file.')
+
+    def reject(self):
+        if not self.busy: super().reject()
+
+    def closeEvent(self, event):
+        if self.busy: self.status.setText('Cancel or finish conversion before closing.'); event.ignore()
+        else: event.accept()

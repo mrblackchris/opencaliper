@@ -50,11 +50,17 @@ def read_data(data, path):
         if len(axes) != 1:
             raise ValueError(f'{prefix}_u: expected exactly one corresponding {prefix}_t or {prefix}_f vector')
         suffix = axes[0]; domain = 'time' if suffix == 't' else 'frequency'
+        declared = text_value(data.get(prefix+'_domain', domain))
+        if declared != domain and not (suffix == 'f' and declared == 'sparameter'):
+            raise ValueError(f'{prefix}: domain metadata conflicts with the paired axis')
+        domain = declared
         key = prefix+'_'+suffix
         unit = text_value(data.get(prefix+'_unit', ''))
         axis_unit = text_value(data.get(key+'_unit', ''))
-        axis = vector(data[key], key, real=True)*axis_scale(axis_unit, domain)
-        if domain == 'frequency' and np.any(axis < 0): raise ValueError(f'{key}: frequencies must be nonnegative')
+        axis = vector(data[key], key, real=True)*axis_scale(axis_unit, 'time' if suffix == 't' else 'frequency')
+        if suffix == 'f' and np.any(axis < 0): raise ValueError(f'{key}: frequencies must be nonnegative')
         name = text_value(data.get(prefix+'_name', prefix))
-        signals.append(Signal(name or prefix, axis, vector(data[prefix+'_u'], prefix+'_u'), unit, domain=domain))
+        reference = float(np.asarray(data[prefix+'_reference_impedance']).item()) if prefix+'_reference_impedance' in data else None
+        signals.append(Signal(name or prefix, axis, vector(data[prefix+'_u'], prefix+'_u'), unit,
+                              domain=domain, reference_impedance=reference))
     return Recording(signals, str(path), timestamp(data))

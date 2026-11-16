@@ -16,6 +16,7 @@ Start here depending on what you want to do:
 | Create compatible input files | [MAT format](MAT_FORMAT.md) and [example generator](../examples/example.py) |
 | Import CSV with headers, metadata or independent signal axes | [CSV format](CSV_FORMAT.md) |
 | Convert files or add a file format | [Converter scripts and adapter contract](../opencaliper/converterscripts/README.md) |
+| Convert files with a selected Python script in the GUI | [Converter window and custom scripts](CONVERTER_WINDOW.md) |
 | Contribute a fix | [Contributing](../CONTRIBUTING.md) |
 | Build a single-file Windows EXE | [Windows executable guide](../bundle/README.md) |
 | Prepare a distribution | [Releasing](RELEASING.md) |

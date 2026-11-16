@@ -1,0 +1,128 @@
+# Converter window and custom scripts
+
+Click **Converter** in the main toolbar. This opens a separate window for
+preparing compatible MAT files without first loading the inputs into plots.
+
+1. Click **Add files…** or drop local files into the list. Any extension is allowed.
+2. Choose **Automatic format detection**, a built-in converter, or
+   **Choose .py script…** for your own reader. One selected converter applies to
+   the list; Automatic can mix registered formats.
+3. Choose an output folder, or leave it blank to save beside each input.
+4. Click **Convert to MAT**. Each row reports success or its own error; one
+   failed input does not prevent the other files from converting.
+5. Click **Load converted files** to import successful outputs into the viewer.
+   Frequency measurements open directly in Spectrum.
+
+Outputs are named `input.opencaliper.mat`. Existing outputs are refused unless
+**Replace existing output files** is checked. Selected inputs are protected from
+replacement, and duplicate output names are rejected before conversion starts.
+Conversion runs in a worker thread. **Cancel conversion** finishes the current
+file and cancels remaining files. Finish or cancel before closing the window or
+application. Successful files remain available to load after a partial failure
+or cancellation.
+
+## Compatible paired MAT output
+
+The Converter window always writes numbered pairs, with independent axes:
+
+```text
+Signal1_u       amplitudes
+Signal1_t       time in seconds
+Signal1_name    original signal name
+Signal1_unit    amplitude unit
+
+Signal2_u       amplitudes
+Signal2_f       frequency in Hz
+Signal2_name    original signal name
+Signal2_unit    amplitude unit
+```
+
+Numbered MATLAB-safe field names allow original names containing spaces, dots
+or parentheses to survive in `_name` metadata. Arrays are not resampled or
+quantized. Complex values and missing amplitudes are retained. Optional
+`SignalN_domain` and `SignalN_reference_impedance` preserve S-parameter identity
+and reference resistance; ordinary `_u`/`_t` or `_u`/`_f` pairs without these
+fields also load. Acquisition time is stored as `recording_timestamp`.
+
+The regular **Export all** and existing CLI export formats retain their existing
+layout. The Converter window's paired output is an additional interchange path.
+
+## Write your own converter
+
+Click **Create converter template…**, choose a new `.py` filename, and edit its
+`read(path)` function. A reader receives a `pathlib.Path` and returns the shared
+`Recording` model. It does not need Qt or MAT-writing code:
+
+```python
+from pathlib import Path
+import numpy as np
+from opencaliper import Recording, Signal
+
+CONVERTER_NAME = 'My instrument'
+
+def read(path):
+    path = Path(path)
+    data = np.loadtxt(path, delimiter=';', skiprows=2)
+    signal = Signal('Voltage', data[:, 0], data[:, 1], 'V', domain='time')
+    return Recording([signal], source=str(path))
+```
+
+For frequency measurements use `domain='frequency'`, with coordinates in Hz.
+Return multiple `Signal` objects for multiple channels. Each needs nonempty,
+matching numeric vectors and a finite nondecreasing horizontal axis. Use physical
+values, apply gain/offset once, retain units, and raise a descriptive exception
+for unsupported input. Missing acquisition dates can use Recording's default.
+
+Save scripts in `opencaliper/converterscripts/` in a source checkout, then click
+**Refresh**. Scripts defining `read(path)` appear automatically; optional constant
+`CONVERTER_NAME` provides their display name. Alternatively, choose any script
+directly or select another directory with **Converter scripts folder…**.
+No registry edit is needed for manually selected scripts. For automatic extension
+detection and normal file-picker integration, also add a reader to `formats.py`.
+
+Discovery inspects Python syntax without executing scripts. Selecting **Convert**
+executes the chosen script with the application's Python environment and
+permissions; choose scripts you trust. Each conversion reads the current source,
+so edits take effect on the next run. Use `opencaliper` imports and installed
+libraries; the reader is given a Path, so it should not rely on a working directory.
+
+### Standalone executable
+
+Built-in converters remain available inside the executable. For your own files,
+create a `converterscripts` directory beside the executable, select another
+directory, or browse directly to a `.py` script. The template is bundled and can
+be copied from the Converter window. Custom scripts can use Python and libraries
+already bundled with the executable. Additional dependencies require a rebuilt
+executable; when running from source, install them in the selected environment.
+
+### Python API
+
+```python
+from pathlib import Path
+from opencaliper.converterscripts.conversion import Converter, convert_one
+
+reader = Converter('My instrument', script=Path('my_converter.py'))
+convert_one('recording.custom', 'recording.opencaliper.mat', reader)
+```
+
+`convert_one` also accepts built-in module selections and Automatic by default.
+`pairedexport.write(recording, path)` writes paired MAT from an existing Recording.
+Parsing and MAT serialization finish before a prior output is replaced.
+
+## Supplied EMC receiver CSV
+
+The local `RE02 bico 30MHz-250MHz BW 120 kHz vertical.csv` has a column-name row,
+a unit row and 7,335 data rows. The EMC converter reads **QPK Level**, **PK+ Level**
+and **AVG Level** as Quasipeak, Peak and Average. It converts MHz to Hz and retains
+dBµV/m amplitudes. Polarization, comments, range, antenna height and correction
+columns are metadata, not plotted signals. Correction is not applied a second
+time. Repeated/non-increasing sweeps must be separated before import.
+
+Automatic CSV detection recognizes this schema; it is also available explicitly
+as **EMC receiver CSV (QPK / PK+ / AVG)**. Tests use synthetic fixtures plus the
+local example when present. Local measurement files remain ignored by Git.
+
+Implementation: [converter_gui.py](../opencaliper/converter_gui.py),
+[conversion.py](../opencaliper/converterscripts/conversion.py),
+[pairedexport.py](../opencaliper/converterscripts/pairedexport.py), and
+[converter_template.py](../opencaliper/converterscripts/converter_template.py).

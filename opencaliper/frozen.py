@@ -82,6 +82,20 @@ def self_test(report):
             np.testing.assert_allclose(csv_recording.signals[0].time, [0., .0025])
             np.testing.assert_allclose(csv_recording.signals[0].values, [1.25, 2.75])
             checked.append('csv')
+            path = folder/'emc.csv'
+            path.write_text('Frequency;QPK Level;PK+ Level;AVG Level;Polarization\n'
+                            'MHz;dBµV/m;dBµV/m;dBµV/m;\n'
+                            '30,0;12,1;18,0;0,8;V\n31,0;11,0;17,0;0,1;V\n', encoding='utf-8-sig')
+            from .converterscripts.conversion import convert_one, create_template, Converter
+            converted = convert_one(path, folder/'emc paired.mat')
+            assert len(load(converted).signals) == 3
+            assert load(converted).signals[0].unit == 'dBµV/m'
+            # Verify editable external scripts work with the bundled interpreter.
+            script = create_template(folder/'user_reader.py')
+            numeric = folder/'custom.unknown'; numeric.write_text('0,1\n1,2\n', encoding='utf-8')
+            custom_output = convert_one(numeric, folder/'custom paired.mat', Converter('Custom', script=script))
+            np.testing.assert_array_equal(load(custom_output).signals[0].values, [1, 2])
+            checked.extend(['emc-csv', 'converter-script'])
             import h5py
             path = folder/'scope.h5'
             with h5py.File(path, 'w') as file:
@@ -116,6 +130,15 @@ def self_test(report):
             def fail(message): raise RuntimeError(message)
             window.error = fail
             window.show(); app.processEvents()
+            converter = window.open_converter()
+            converter.add_files([str(numeric)])
+            converter.select_script(script)
+            converter.start()
+            deadline = QtCore.QElapsedTimer(); deadline.start()
+            while converter.busy and deadline.elapsed() < 10000:
+                app.processEvents(); QtCore.QThread.msleep(1)
+            assert not converter.busy and len(converter.outputs) == 1, 'Converter window did not produce MAT'
+            converter.close()
             assert not window.windowIcon().isNull(), 'Packaged logo is missing'
             window.loaded(source); window.add_signal(0, window.plots[0])
             window.set_signal_visibility(window.plots[0], [0], False)

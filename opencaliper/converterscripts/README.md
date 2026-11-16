@@ -3,6 +3,11 @@
 All file-format adapters live here. The GUI, Python API and command-line tools
 share the same dispatcher and registry. No Qt dependency is needed for conversion.
 
+The **Converter** toolbar window also runs explicitly selected Python readers and
+writes paired `_u`/`_t` or `_u`/`_f` MAT files. Its script interface is the same
+`read(path) -> Recording` contract as the built-in adapters. See the
+[GUI and contributor guide](../../docs/CONVERTER_WINDOW.md).
+
 ## Convert a measurement
 
 From the project folder after installing OpenCaliper in your Python environment:
@@ -42,6 +47,10 @@ in its header. These conversions do not preserve every device-specific field.
 | `matpreparse.py` | Detect native, paired-vector, receiver and acquisition layouts from MAT variables |
 | `pairedconvert.py` | Decode PREFIX_u with PREFIX_t/PREFIX_f; shared vector/unit validation |
 | `csvconvert.py` | `read(path)`: detect CSV delimiters, headers/metadata and shared/paired axes |
+| `emccsvconvert.py` | `read(path)`: frequency/detector CSV with unit row and categorical metadata |
+| `conversion.py` | Script discovery/loading, conversion planning and paired MAT conversion |
+| `converter_template.py` | Copyable `read(path)` contributor example |
+| `pairedexport.py` | `write(...)`: numbered paired MAT, preserving names, domains and references |
 | `esrpconvert.py` | ESRP receiver `freq`/`avg`/`peak`/`qpk` (`pk` legacy alias) MAT spectra; selected by `matconvert.py` from contents |
 | `mdfconvert.py` | `read(path)`: MDF/MF4 numeric scalar channels |
 | `wvfconvert.py` | `read(path)`: Yokogawa single-block IS2 WVF/HDR |

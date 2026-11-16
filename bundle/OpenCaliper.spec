@@ -9,6 +9,7 @@ root = Path(SPECPATH).parent
 hidden = collect_submodules('opencaliper.converterscripts')
 data = collect_data_files('opencaliper')
 data += [(str(root/name), '.') for name in ('LICENSE','NOTICE','THIRD_PARTY_NOTICES.md')]
+data += [(str(root/'opencaliper/converterscripts/converter_template.py'), 'opencaliper/converterscripts')]
 data += copy_metadata('opencaliper', recursive=True)
 
 a = Analysis(

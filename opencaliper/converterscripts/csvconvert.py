@@ -153,14 +153,21 @@ def detect_table(text):
     return max(valid, key=lambda table: table.score)
 
 
-def read(path):
-    """Import shared time/frequency columns or explicitly named independent pairs."""
-    path = Path(path)
-    raw = path.read_bytes()
-    if raw.startswith((b'\xff\xfe', b'\xfe\xff')): text = raw.decode('utf-16')
+def decode_text(path):
+    """Decode supported instrument CSV encodings without interpreting columns."""
+    raw = Path(path).read_bytes()
+    if raw.startswith((b'\xff\xfe', b'\xfe\xff')): return raw.decode('utf-16')
     else:
-        try: text = raw.decode('utf-8-sig')
-        except UnicodeDecodeError: text = raw.decode('cp1252')
+        try: return raw.decode('utf-8-sig')
+        except UnicodeDecodeError: return raw.decode('cp1252')
+
+
+def read(path):
+    """Import generic tables or the recognized mixed-column EMC receiver layout."""
+    path = Path(path)
+    text = decode_text(path)
+    from . import emccsvconvert
+    if emccsvconvert.recognizes(text) is not None: return emccsvconvert.read_text(text, path)
     table = detect_table(text)
     names, units, values = table.labels, table.units, table.values
     paired = prefixes({name: None for name in names})

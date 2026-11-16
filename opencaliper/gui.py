@@ -412,6 +412,7 @@ class Window(WorkspaceMixin, ToolsMixin, Q.QMainWindow):
         self.setAcceptDrops(True)
         bar = self.addToolBar('Measurement')
         for label, callback in [('Open files', self.open_files), ('Export all', self.save),
+                                ('Converter', self.open_converter),
                                 ('New Time Analysis', lambda: self.add_analysis()),
                                 ('New Spectrum Analysis', lambda: self.add_analysis('spectrum')),
                                 ('New S Parameter Analysis', lambda: self.add_analysis('sparameter')),
@@ -530,6 +531,16 @@ class Window(WorkspaceMixin, ToolsMixin, Q.QMainWindow):
     def open_files(self):
         paths, _ = Q.QFileDialog.getOpenFileNames(self, 'Open measurements', '', input_filter())
         for path in paths: self.open_path(path)
+
+    def open_converter(self):
+        """Open file conversion independently of loaded plots and analyses."""
+        from .converter_gui import ConverterDialog
+        dialog = ConverterDialog(self)
+        dialog.files_ready.connect(lambda paths: [self.open_path(path) for path in paths])
+        self.dialogs.append(dialog)
+        dialog.destroyed.connect(lambda: self.dialogs.remove(dialog) if dialog in self.dialogs else None)
+        dialog.show()
+        return dialog
 
     def open_path(self, path, target_page=None, target_plot=None):
         """Start and retain a Loader; connect its results to GUI-thread handlers."""
@@ -1293,8 +1304,8 @@ class Window(WorkspaceMixin, ToolsMixin, Q.QMainWindow):
 
     def closeEvent(self, event):
         """Refuse window closure while imports are still running."""
-        if self.workers:
-            self.statusBar().showMessage('Please wait for imports to finish before closing.'); event.ignore()
+        if self.workers or any(getattr(dialog, 'busy', False) for dialog in self.dialogs):
+            self.statusBar().showMessage('Please wait for imports or conversions to finish before closing.'); event.ignore()
         else: event.accept()
 
 

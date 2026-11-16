@@ -37,6 +37,8 @@ Start with the [step-by-step user guide](docs/USER_GUIDE.md). Contributors can f
 - PNG, SVG and PDF plot export with cursor measurements; undo and redo.
 - Memory-mapped NumPy input for large recordings, with display downsampling.
 - GUI, command-line and Python interfaces for supported imports and conversions.
+- Converter window with file drops, selectable Python readers, a contributor
+  template and compatible `_u`/`_t` or `_u`/`_f` MAT output.
 
 ## Single-file executables
 
@@ -242,6 +244,11 @@ opencaliper convert recording.mf4 converted.mat
 `--signal` is the zero-based channel index printed by `info`; interval values are seconds. `python -m opencaliper` provides the same commands. `mat2raw input.mat output.raw` is a shortcut for RAW conversion. Converters refuse to overwrite files unless `--overwrite` is supplied; FFT CSV output also refuses existing files.
 
 ## Converter scripts and adding formats
+
+Use the **Converter** toolbar button to add files, choose a built-in or custom
+`.py` reader and create paired MAT files. **Load converted files** imports the
+results. See the [Converter window guide](docs/CONVERTER_WINDOW.md) for the shared
+reader interface and how to add your own scripts.
 
 All import/export adapters live in [`opencaliper/converterscripts/`](opencaliper/converterscripts/README.md), with separate files such as `mdfconvert.py`, `wvfconvert.py`, `rawconvert.py`, `matexport.py` and `mdfexport.py`. A central dispatcher detects the extension and chooses the adapter. The viewer and CLI use this same registry.
 

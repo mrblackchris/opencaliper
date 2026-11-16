@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Converter window with file selection/drops, built-in/custom Python readers,
+  paired MAT output, per-file results, cancellation and loading converted files.
+- EMC receiver CSV import for Frequency and QPK/PK+/AVG Level tables with units
+  and categorical metadata; a copyable converter script template.
+
 - Keep Spectrum FFT controls visible outside collapsible plot splitters, remove
   fixed-height clipping and offer a direct resampling retry for uneven timestamps.
 
