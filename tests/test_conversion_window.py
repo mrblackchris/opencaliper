@@ -24,7 +24,8 @@ EMC_CSV = ('Rg;Frequency;QPK Level;PK+ Level;AVG Level;Correction;Polarization;A
 class ConversionFixture:
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(); self.addCleanup(self.temp.cleanup)
-        self.folder = Path(self.temp.name)
+        # Windows TEMP may use an 8.3 name (RUNNER~1); discovery returns resolved paths.
+        self.folder = Path(self.temp.name).resolve()
         self.source = self.folder/'receiver.csv'; self.source.write_text(EMC_CSV, encoding='utf-8-sig')
 
 
