@@ -58,6 +58,26 @@ class CursorClickTests(unittest.TestCase):
         QTest.mouseClick(p.viewport(),QtCore.Qt.MouseButton.LeftButton,pos=position)
         self.assertEqual(w.cursor_positions,original)
 
+    def test_interval_statistics_follow_cursors_and_handle_empty_intervals(self):
+        w = self.w
+        w.loaded(Recording([Signal('levels', np.arange(5.), np.array([100., 3., 4., np.nan, 200.]), 'V')], 'levels.mat'))
+        w.add_signal(1, w.plots[0])
+        w.cursors_enabled.setChecked(True)
+        w.move_cursor(0, 3.); w.move_cursor(1, 1.)
+        text = w.readout.toPlainText()
+        from opencaliper.gui import scientific
+        self.assertIn('A–B statistics (2 samples)', text)
+        self.assertIn(f'Average {scientific(3.5)} V', text)
+        self.assertIn(f'RMS {scientific(np.sqrt(12.5))} V', text)
+        self.assertIn(f'Peak-to-peak {scientific(1.)} V', text)
+        self.assertIn(f'Std {scientific(.5)} V', text)
+        w.move_cursor(0, 1.); w.move_cursor(1, 1.)
+        self.assertIn('A–B statistics (1 samples)', w.readout.toPlainText())
+        w.move_cursor(0, 20.); w.move_cursor(1, 21.)
+        self.assertIn('no finite samples in this interval', w.readout.toPlainText())
+        w.cursors_enabled.setChecked(False)
+        self.assertNotIn('A–B statistics', w.readout.toPlainText())
+
     def test_log_frequency_click_uses_hz_and_tab_sequence_is_independent(self):
         w=self.w; w.cursors_enabled.setChecked(True)
         self.click(w.plots[0],.3)

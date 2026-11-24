@@ -108,6 +108,8 @@ Amplitudes are linearly interpolated between source samples. A cursor outside a 
 
 Select a channel and click **Statistics** for minimum, maximum, peak-to-peak, mean, RMS and population standard deviation. Enabled cursors select the analysis interval; otherwise the full signal is used. Nonfinite values are excluded from statistics.
 
+With **Diff cursors** enabled, the readout below the plots also shows live A–B statistics for each visible real-valued signal: sample count, average, RMS, minimum, maximum, peak-to-peak and population standard deviation. Move either cursor to update the results. The interval includes both bounds and works with A and B in either order. Calculations use the original samples of the displayed signal, excluding nonfinite values; boundary values are not interpolated for statistics. Spectrum pages use the selected frequency interval. Empty intervals display a message instead of a result.
+
 ## Analyze a spectrum
 
 Select `Channel1` and click **FFT**. A general-purpose Spectrum tab opens with the selected signal. You can also start with **New Spectrum Analysis**, then drag in time channels for FFT or receiver channels for direct plotting. Drag additional source channels into its plots to calculate more spectra. FFT requires at least four finite real samples. For irregular acquisition times, explicitly enable **Resample (linear)** and select Auto or a sample rate in Hz before clicking **Recalculate**; otherwise timestamps must be uniformly spaced.

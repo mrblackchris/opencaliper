@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Live per-signal RMS, average, min/max, peak-to-peak, standard deviation and
+  sample count between cursors A and B in the cursor readout.
+
 - Per-trace line widths, dash patterns and sample markers, saved with workspaces
   and undo history; cursor lines/labels stack above data and annotations.
 - Converter option for one shared t1 time vector with SignalN_t1 amplitudes,

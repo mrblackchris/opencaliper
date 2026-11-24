@@ -1134,6 +1134,15 @@ class Window(WorkspaceMixin, ToolsMixin, Q.QMainWindow):
                 v = cursor_values(s,a,b)
                 delta_label = 'Δamplitude' if page.kind != 'time' else 'ΔY'
                 rows.append(f'{name}: A {scientific(v["a"])}   B {scientific(v["b"])}   {delta_label} {scientific(v["delta"])} {s.unit}')
+                try:
+                    summary = statistics(s, *sorted((a, b)))
+                except ValueError:
+                    rows.append('    A–B statistics: no finite samples in this interval')
+                else:
+                    fields = [('Average', 'mean'), ('RMS', 'rms'), ('Min', 'minimum'),
+                              ('Max', 'maximum'), ('Peak-to-peak', 'peak_to_peak'), ('Std', 'std')]
+                    rows.append(f'    A–B statistics ({summary["count"]} samples): ' +
+                                '   '.join(f'{label} {scientific(summary[key])} {s.unit}' for label, key in fields))
         page.readout.setPlainText('\n'.join(rows))
 
     def selected(self):
