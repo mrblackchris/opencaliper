@@ -82,6 +82,14 @@ xlabel('Time (s)'); ylabel(m.Channel1_unit);
 
 ## Named amplitude/time/frequency pairs
 
+The reader also accepts a shared-time layout: a top-level `t1` vector in seconds,
+with channel amplitudes in `Signal1_t1`, `Signal2_t1`, etc. Optional names and
+units use `SignalN_name` and `SignalN_unit`. An optional `t1_unit` rescales the
+common time vector. A real explicit `t1` takes precedence over acquisition timing
+metadata when shared channel arrays are present. See the
+[Converter guide](CONVERTER_WINDOW.md#compatible-paired-mat-output) for exporting
+this layout, including optional explicit resampling.
+
 MAT import also supports top-level vectors named `PREFIX_u` and exactly one of
 `PREFIX_t` or `PREFIX_f`. For example:
 

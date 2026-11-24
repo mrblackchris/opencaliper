@@ -21,6 +21,8 @@ Start with the [step-by-step user guide](docs/USER_GUIDE.md). Contributors can f
   MAT imports also accept paired `Signal1_u`/`Signal1_t` or `Signal1_u`/`Signal1_f` vectors.
 - Multiple analysis tabs and resizable subplots with linked horizontal axes.
 - Shared or separate Y axes, configurable curve colors and plot backgrounds.
+- Per-trace line widths, dash patterns and point markers; shared-t1 MAT conversion
+  with optional explicit alignment/resampling.
 - Mouse-wheel and rectangle zoom, panning, and fit-to-data controls.
 - Double-click axis settings with manual physical bounds and independent X/Y range locks.
 - Differential cursors for time, frequency and amplitude measurements.

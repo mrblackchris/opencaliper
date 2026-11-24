@@ -31,6 +31,9 @@ def read(path):
     if 'receiver' in layouts:
         from .esrpconvert import read_data
         signals.extend(read_data(data, path).signals)
+    if 'shared_time' in layouts:
+        from .sharedtimeconvert import read_data
+        signals.extend(read_data(data, path).signals)
     if 'acquisition' in layouts:
         _, m = read_measurement(path, quantize_output=False)
         signals.extend(Signal(f'Channel{c.number}', m.xoffset + np.arange(len(c.samples))*m.xinc,

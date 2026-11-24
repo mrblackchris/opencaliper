@@ -23,7 +23,30 @@ or cancellation.
 
 ## Compatible paired MAT output
 
-The Converter window always writes numbered pairs, with independent axes:
+The **MAT layout** selector offers the original separate-axis layout described
+below and **One shared uniform time vector (t1)**. Shared-time output contains:
+
+```text
+t1              one common time vector in seconds
+Signal1_t1      first signal's amplitude samples
+Signal2_t1      second signal's amplitude samples
+```
+
+Names and units remain in `SignalN_name` and `SignalN_unit`. The viewer reads
+this layout directly. With resampling unchecked, every channel must already
+have the same uniformly spaced time coordinates; mismatches produce an error.
+Frequency channels require the separate-axis layout.
+
+To align uneven or independent time axes, explicitly check **Resample/align onto
+a shared uniform time grid** and select a rate in Hz. Auto uses the slowest median
+source rate. Conversion linearly interpolates within the channels' common time
+interval only, without extrapolating. This trims non-overlapping portions. No
+anti-alias filter is applied, and upsampling does not add measured bandwidth.
+Duplicate timestamps, nonfinite samples, no overlap, or a grid over 10 million
+samples produce errors. Inputs remain unchanged. Leave this option unchecked
+to preserve the original samples exactly.
+
+With separate axes selected, the Converter window writes numbered pairs:
 
 ```text
 Signal1_u       amplitudes

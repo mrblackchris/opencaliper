@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Per-trace line widths, dash patterns and sample markers, saved with workspaces
+  and undo history; cursor lines/labels stack above data and annotations.
+- Converter option for one shared t1 time vector with SignalN_t1 amplitudes,
+  including optional explicit interpolation over the common interval.
+
 - Converter window with file selection/drops, built-in/custom Python readers,
   paired MAT output, per-file results, cancellation and loading converted files.
 - EMC receiver CSV import for Frequency and QPK/PK+/AVG Level tables with units

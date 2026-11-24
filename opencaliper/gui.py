@@ -20,6 +20,7 @@ from .display import scientific
 from .branding import application_icon, configure_windows_identity
 from .sparameters import REPRESENTATIONS, SmithChart, displayed
 from .axis_settings import EditableAxis, AxisSettingsDialog, constrain
+from . import plot_style
 
 
 class Loader(QtCore.QThread):
@@ -171,6 +172,7 @@ class Plot(pg.PlotWidget):
         self.fit_bounds = {}
         self.signal_colors = {}
         self.signal_names = {}
+        self.signal_styles = {}
         self.hidden_signals = set()
         self.updating_visibility = False
         self.signal_axes = {}
@@ -184,6 +186,14 @@ class Plot(pg.PlotWidget):
         self.getViewBox().sigResized.connect(self.update_axis_geometry)
         self.previous_y_range = self.getViewBox().viewRange()[1][:]
         self.getViewBox().sigYRangeChanged.connect(self.sync_y_navigation)
+        # A sibling of the data group also places cursors above the legend.
+        self.cursor_layer = pg.ItemGroup(self.getViewBox())
+        self.cursor_layer.setZValue(1e6)
+        self.getViewBox().sigTransformChanged.connect(self.sync_cursor_layer)
+        self.sync_cursor_layer()
+
+    def sync_cursor_layer(self):
+        self.cursor_layer.setTransform(self.getViewBox().childGroup.transform())
 
     def update_axis_geometry(self):
         for axis, view in self.extra_axes.values():
@@ -681,12 +691,17 @@ class Window(WorkspaceMixin, ToolsMixin, Q.QMainWindow):
         plot.dropped.connect(lambda index: self.add_signal(index, plot))
         plot.files_dropped.connect(lambda paths: [self.open_path(path, page, plot) for path in paths])
         axis_unit = 's' if page.kind == 'time' else 'Hz'
-        plot.cursors = [pg.InfiniteLine(pos=p, angle=90, movable=True, pen=pg.mkPen(c, width=2),
+        plot.cursors = [pg.InfiniteLine(pos=p, angle=90, movable=True, pen=pg.mkPen(c, width=2.5),
+                        hoverPen=pg.mkPen(c, width=3.5),
                         label=f'{l}: {scientific(p)} {axis_unit}',
-                        labelOpts={'position': .65 if l == 'A' else .35, 'color': c, 'fill': (17, 25, 36, 210)})
+                        labelOpts={'position': .65 if l == 'A' else .35, 'color': c, 'fill': (17, 25, 36, 255)})
                         for p,c,l in zip(self.cursor_positions, ['#ffd166','#ef476f'], ['A','B'])]
         for i, cursor in enumerate(plot.cursors):
-            plot.addItem(cursor, ignoreBounds=True); cursor.setVisible(page.cursors_visible)
+            cursor.setZValue(10000+i)
+            cursor.label.setZValue(1)
+            plot.addItem(cursor, ignoreBounds=True)
+            cursor.setParentItem(plot.cursor_layer)
+            cursor.setVisible(page.cursors_visible)
             cursor.sigPositionChanged.connect(lambda line, index=i, owner=page, source=plot: self.move_cursor(index, source.x_from_scene(line.value()), owner))
         self.plots.append(plot)
         plot.log_x_box.toggled.connect(lambda: self.set_plot_log(plot))
@@ -825,6 +840,7 @@ class Window(WorkspaceMixin, ToolsMixin, Q.QMainWindow):
         menu = Q.QMenu(self)
         menu.addAction('Change color…', lambda: self.choose_signal_color(plot, indices))
         menu.addAction('Rename signal…', lambda: self.rename_signals(plot, indices))
+        menu.addAction('Line and markers…', lambda: self.choose_signal_style(plot, indices))
         menu.addSeparator()
         menu.addAction('Plot on main Y axis', lambda: self.set_signal_axis(plot, indices, None))
         menu.addAction('Plot on separate Y axis', lambda: self.separate_signal_axes(plot, indices))
@@ -855,6 +871,10 @@ class Window(WorkspaceMixin, ToolsMixin, Q.QMainWindow):
         for index in plot.curves:
             names.addAction(self.display_name(plot, index), lambda checked=False, i=index: self.rename_signals(plot, [i]))
         names.setEnabled(bool(plot.curves))
+        styles = menu.addMenu('Line and markers')
+        for index in plot.curves:
+            styles.addAction(self.display_name(plot, index), lambda checked=False, i=index: self.choose_signal_style(plot, [i]))
+        styles.setEnabled(bool(plot.curves))
         menu.addAction('Background color…', lambda: self.choose_background_color(plot))
         menu.addAction('Clear annotations', lambda: self.clear_annotations(plot))
         return menu
@@ -893,11 +913,38 @@ class Window(WorkspaceMixin, ToolsMixin, Q.QMainWindow):
             plot.signal_colors[index] = QtGui.QColor(color)
             pen = pg.mkPen(plot.curves[index].opts['pen'])
             pen.setColor(color); plot.curves[index].setPen(pen)
+            plot_style.apply(plot.curves[index], plot.signal_styles.get(index, {}), color)
         for row in range(plot.signal_list.count()):
             item = plot.signal_list.item(row)
             if item.data(QtCore.Qt.ItemDataRole.UserRole) in indices: item.setForeground(color)
         for sample, label in plot.plotItem.legend.items: sample.update()
         self.update_axis_labels(plot)
+
+    def choose_signal_style(self, plot, indices):
+        """Set line and point appearance for the selected traces in this subplot."""
+        indices = [i for i in indices if i in plot.curves]
+        if not indices: return
+        current = plot_style.normalize(plot.signal_styles.get(indices[0], {}))
+        width = Q.QDoubleSpinBox(); width.setRange(.25, 20); width.setSingleStep(.25); width.setSuffix(' px'); width.setValue(current['width'])
+        line = Q.QComboBox(); line.addItems(plot_style.LINES); line.setCurrentText(current['line'])
+        marker = Q.QComboBox(); marker.addItems(plot_style.MARKERS); marker.setCurrentText(current['marker'])
+        line.currentTextChanged.connect(lambda text: marker.setCurrentText('Circle') if text == 'None (markers only)' and marker.currentText() == 'None' else None)
+        marker.currentTextChanged.connect(lambda text: line.setCurrentText('Solid') if text == 'None' and line.currentText() == 'None (markers only)' else None)
+        size = Q.QDoubleSpinBox(); size.setRange(1, 40); size.setSuffix(' px'); size.setValue(current['size'])
+        filled = Q.QCheckBox('Filled markers'); filled.setChecked(current['filled'])
+        if self.form('Line and markers', [('Line width', width), ('Line style', line), ('Point marker', marker), ('Marker size', size), ('', filled)]):
+            try: self.set_signal_style(plot, indices, dict(width=width.value(), line=line.currentText(), marker=marker.currentText(), size=size.value(), filled=filled.isChecked()))
+            except ValueError as exc: self.error(str(exc))
+
+    @reversible
+    def set_signal_style(self, plot, indices, style):
+        """Apply/persist appearance without changing data, names or axis assignments."""
+        style = plot_style.normalize(style)
+        for index in indices:
+            if index in plot.curves:
+                plot.signal_styles[index] = dict(style)
+                plot_style.apply(plot.curves[index], style)
+        for sample, label in plot.plotItem.legend.items: sample.update()
 
     def choose_background_color(self, plot):
         color = Q.QColorDialog.getColor(plot.backgroundBrush().color(), self, 'Plot background color')
@@ -952,6 +999,7 @@ class Window(WorkspaceMixin, ToolsMixin, Q.QMainWindow):
             plot.log_y_box.setChecked(False)
         color = plot.signal_colors.get(index, pg.intColor(index, hues=12))
         plot.curves[index] = plot.plot(s.time, y, pen=pg.mkPen(color, width=1), name=f'{self.display_name(plot, index)} [{s.unit}]')
+        plot_style.apply(plot.curves[index], plot.signal_styles.get(index, {}))
         plot.curves[index].setCurveClickable(False, width=10)
         plot.signal_axes[index] = None
         source = self.signal_items[index]

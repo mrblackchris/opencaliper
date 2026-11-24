@@ -33,16 +33,19 @@ class ConversionWorker(QtCore.QThread):
     """Decode/write sequentially off the UI thread; cancellation is between files."""
     result = QtCore.Signal(int, str, str)
 
-    def __init__(self, jobs, converter, overwrite, parent=None):
+    def __init__(self, jobs, converter, overwrite, parent=None, axis_mode='per_signal', resample=False, sample_rate=None):
         super().__init__(parent)
         self.jobs, self.converter, self.overwrite = jobs, converter, overwrite
+        self.axis_mode = axis_mode
+        self.resample, self.sample_rate = resample, sample_rate
 
     def run(self):
         for row, (source, target) in enumerate(self.jobs):
             if self.isInterruptionRequested(): break
             self.result.emit(row, 'Converting…', '')
             try:
-                path = conversion.convert_one(source, target, self.converter, self.overwrite)
+                path = conversion.convert_one(source, target, self.converter, self.overwrite,
+                                              axis_mode=self.axis_mode, resample=self.resample, sample_rate=self.sample_rate)
                 self.result.emit(row, 'Converted', str(path))
             except (Exception, SystemExit) as exc:
                 self.result.emit(row, f'Error: {exc}', '')
@@ -54,12 +57,12 @@ class ConverterDialog(Q.QDialog):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle('Converter — paired MAT files'); self.resize(1000, 650)
+        self.setWindowTitle('Converter — MAT files'); self.resize(1000, 650)
         self.setAttribute(QtCore.Qt.WidgetAttribute.WA_DeleteOnClose)
         self.worker = None; self.busy = False; self.outputs = []; self.paths = []
         self.folder = conversion.converter_folder()
         layout = Q.QVBoxLayout(self)
-        layout.addWidget(Q.QLabel('Add or drop files, select a converter, then create compatible SignalN_u + SignalN_t / SignalN_f MAT files.'))
+        layout.addWidget(Q.QLabel('Add or drop files, select a converter and MAT layout, then convert and load the results.'))
         buttons = Q.QHBoxLayout(); layout.addLayout(buttons)
         self.add_button = Q.QPushButton('Add files…'); self.remove_button = Q.QPushButton('Remove selected')
         self.clear_button = Q.QPushButton('Clear list')
@@ -82,6 +85,19 @@ class ConverterDialog(Q.QDialog):
         self.output_button = Q.QPushButton('Output folder…')
         output = Q.QHBoxLayout(); output.addWidget(self.output_folder, 1); output.addWidget(self.output_button)
         form.addRow('Save to:', output)
+        self.axis_mode = Q.QComboBox()
+        self.axis_mode.addItem('Separate time/frequency vector for each signal', 'per_signal')
+        self.axis_mode.addItem('One shared uniform time vector (t1)', 'shared_time')
+        self.axis_mode.setToolTip('Shared t1 requires identical uniform time axes. It does not resample or align channels.')
+        form.addRow('MAT layout:', self.axis_mode)
+        self.resample_shared = Q.QCheckBox('Resample/align onto a shared uniform time grid')
+        self.resample_shared.setEnabled(False)
+        self.shared_rate = Q.QDoubleSpinBox(); self.shared_rate.setDecimals(6); self.shared_rate.setRange(0,1e12)
+        self.shared_rate.setSpecialValueText('Auto (slowest median rate)'); self.shared_rate.setSuffix(' Hz'); self.shared_rate.setEnabled(False)
+        self.shared_rate.setToolTip('Linear interpolation over the common time interval, without extrapolation or anti-alias filtering.')
+        form.addRow(self.resample_shared); form.addRow('Shared sample rate:', self.shared_rate)
+        self.axis_mode.currentIndexChanged.connect(self.update_shared_options)
+        self.resample_shared.toggled.connect(self.update_shared_options)
         self.overwrite = Q.QCheckBox('Replace existing output files'); form.addRow(self.overwrite)
         tools = Q.QHBoxLayout(); layout.addLayout(tools)
         self.folder_button = Q.QPushButton('Converter scripts folder…')
@@ -178,10 +194,16 @@ class ConverterDialog(Q.QDialog):
         self.busy = busy
         for widget in (self.table, self.add_button, self.remove_button, self.clear_button,
                        self.converter, self.script_button, self.refresh_button, self.output_folder,
-                       self.output_button, self.overwrite, self.folder_button, self.template_button, self.close_button):
+                       self.output_button, self.axis_mode, self.overwrite, self.folder_button, self.template_button, self.close_button):
             widget.setEnabled(not busy)
         self.convert_button.setEnabled(not busy and bool(self.paths))
         self.cancel_button.setEnabled(busy); self.load_button.setEnabled(not busy and bool(self.outputs))
+        self.update_shared_options()
+
+    def update_shared_options(self):
+        shared = self.axis_mode.currentData() == 'shared_time' and not self.busy
+        self.resample_shared.setEnabled(shared)
+        self.shared_rate.setEnabled(shared and self.resample_shared.isChecked())
 
     def start(self):
         if self.busy or not self.paths: return
@@ -194,7 +216,10 @@ class ConverterDialog(Q.QDialog):
         for row, (_, target) in enumerate(jobs):
             self.table.item(row, 1).setText('Queued'); self.table.item(row, 2).setText(str(target))
         self.set_busy(True); self.status.setText('Converting… Cancellation takes effect after the current file.')
-        self.worker = ConversionWorker(jobs, self.converter.currentData(), self.overwrite.isChecked(), self)
+        self.worker = ConversionWorker(jobs, self.converter.currentData(), self.overwrite.isChecked(), self,
+                                       axis_mode=self.axis_mode.currentData(),
+                                       resample=self.axis_mode.currentData() == 'shared_time' and self.resample_shared.isChecked(),
+                                       sample_rate=self.shared_rate.value() or None)
         self.worker.result.connect(self.update_result)
         self.worker.finished.connect(self.conversion_finished)
         self.worker.start()

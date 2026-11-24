@@ -100,14 +100,14 @@ def plan(sources, folder=None):
     return jobs
 
 
-def convert_one(source, target, converter=None, overwrite=False):
+def convert_one(source, target, converter=None, overwrite=False, axis_mode='per_signal', resample=False, sample_rate=None):
     """Decode using a selected script and write paired MAT after successful parsing."""
     source, target = Path(source).resolve(), Path(target).resolve()
     if source == target: raise ValueError('Input and output paths must differ')
     if not source.is_file(): raise ValueError(f'Input file does not exist: {source}')
     if target.exists() and not overwrite: raise FileExistsError(target)
     recording = read_with(converter or Converter('Automatic format detection'), source)
-    return write(recording, target, overwrite)
+    return write(recording, target, overwrite, axis_mode=axis_mode, resample=resample, sample_rate=sample_rate)
 
 
 def create_template(destination):

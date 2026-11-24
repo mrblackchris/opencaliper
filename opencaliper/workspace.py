@@ -28,6 +28,7 @@ class WorkspaceMixin:
                                   axes=dict(p.signal_axes), ranges={k: p.axis_view(k).viewRange()[1][:] for k in [None,*p.extra_axes]},
                                   x=p.physical_x_range(), log=[p.log_x,p.log_y], background=p.backgroundBrush().color().name(),
                                   y_locked=p.y_locked,
+                                  styles={i: dict(style) for i, style in p.signal_styles.items() if i in p.curves},
                                   annotations=list(getattr(p, 'annotations', [])), sizes=p.panel.sizes()))
             pages.append(dict(title=self.tabs.tabText(n), kind=page.kind, interval=page.fft_interval,
                               representation=page.sparameter_representation,
@@ -83,6 +84,7 @@ class WorkspaceMixin:
                     p.setBackground(spec['background'])
                     p.log_x_box.setChecked(spec['log'][0]); p.log_y_box.setChecked(spec['log'][1])
                     p.signal_names = {remap[i]:name for i,name in spec.get('names', {}).items()}
+                    p.signal_styles = {remap[i]:style for i,style in spec.get('styles', {}).items()}
                     for old in spec['ids']:
                         i = remap[old]
                         p.signal_colors[i] = QtGui.QColor(spec['colors'][old])
@@ -149,7 +151,7 @@ class WorkspaceMixin:
         metadata['channels'] = {i:dict(name=s.name,unit=s.unit,domain=s.domain,reference_impedance=s.reference_impedance) for i,s in state['signals'].items()}
         for page in metadata['pages']:
             for p in page['plots']:
-                for key in ('colors','axes','ranges','names'): p[key] = list(p[key].items())
+                for key in ('colors','axes','ranges','names','styles'): p[key] = list(p[key].items())
         temp = None
         try:
             with tempfile.NamedTemporaryFile(dir=Path(path).resolve().parent,delete=False) as f: temp = f.name
@@ -189,7 +191,7 @@ class WorkspaceMixin:
                 for page in state['pages']:
                     if page['kind'] not in ('time','fft','spectrum','sparameter'): raise ValueError('Unknown analysis type')
                     for p in page['plots']:
-                        for key in ('colors','axes','ranges','names'): p[key] = dict(p.get(key, []))
+                        for key in ('colors','axes','ranges','names','styles'): p[key] = dict(p.get(key, []))
             self.restore_state(state)
             self._undo.append(previous); self._redo.clear(); self.update_history_actions()
         except Exception as exc:

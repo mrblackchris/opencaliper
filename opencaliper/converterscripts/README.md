@@ -51,6 +51,7 @@ in its header. These conversions do not preserve every device-specific field.
 | `conversion.py` | Script discovery/loading, conversion planning and paired MAT conversion |
 | `converter_template.py` | Copyable `read(path)` contributor example |
 | `pairedexport.py` | `write(...)`: numbered paired MAT, preserving names, domains and references |
+| `sharedtimeconvert.py` | Decode one explicit t1 time vector with PREFIX_t1 amplitude arrays |
 | `esrpconvert.py` | ESRP receiver `freq`/`avg`/`peak`/`qpk` (`pk` legacy alias) MAT spectra; selected by `matconvert.py` from contents |
 | `mdfconvert.py` | `read(path)`: MDF/MF4 numeric scalar channels |
 | `wvfconvert.py` | `read(path)`: Yokogawa single-block IS2 WVF/HDR |

@@ -76,6 +76,10 @@ def self_test(report):
             assert [s.domain for s in paired.signals] == ['time', 'frequency']
             np.testing.assert_allclose(paired.signals[0].values, source.signals[0].values)
             checked.append('mat-paired')
+            from .converterscripts.pairedexport import write as write_paired
+            shared = folder/'shared.mat'; write_paired(source, shared, axis_mode='shared_time')
+            np.testing.assert_allclose(load(shared).signals[0].values, source.signals[0].values)
+            checked.append('mat-shared-t1')
             path = folder/'scope.csv'
             path.write_text('Time [ms];Voltage [V]\nMeasurement comment\n0,0;1,25\n2,5;2,75\n', encoding='utf-8')
             csv_recording = load(path)
@@ -144,6 +148,8 @@ def self_test(report):
             window.set_signal_visibility(window.plots[0], [0], False)
             assert not window.plots[0].curves[0].isVisible()
             window.set_signal_visibility(window.plots[0], [0], True)
+            window.set_signal_style(window.plots[0], [0], dict(width=2, line='Dashed', marker='Circle', size=4))
+            assert window.plots[0].cursors[0].zValue() > window.plots[0].curves[0].zValue()
             for extension in ('png', 'svg', 'pdf'):
                 path = folder/('plot.'+extension)
                 window.export_plot_to(window.plots[0], path)

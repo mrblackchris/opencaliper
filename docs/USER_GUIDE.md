@@ -1,5 +1,19 @@
 # User guide
 
+## Trace appearance and cursor visibility
+
+Right-click a trace or select signals in its plot sidebar and choose
+**Line and markers…**. Set line width, solid/dashed/dotted/dash-dot style,
+marker shape and size, or filled/unfilled markers. **None (markers only)**
+shows sample markers without a connecting line. The plot background menu also
+provides a per-signal appearance submenu. Color remains a separate control and
+updates both lines and markers. Styles are plot-local, survive axis moves and
+recalculation, appear in PNG/SVG/PDF exports, and persist in workspaces and undo.
+Time plots may downsample for display; zoom in to inspect individual samples.
+
+Differential cursor lines and labels are drawn above traces, annotations and legends,
+with a stronger hover line and an opaque label background for readability.
+
 ## Set axis ranges and lock scaling
 
 Double-click the bottom X axis, left Y axis or an additional right Y axis to

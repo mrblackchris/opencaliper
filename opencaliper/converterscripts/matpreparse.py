@@ -13,7 +13,10 @@ def detect_layouts(data):
     layouts = []
     if any(re.fullmatch(r'signal_\d+_values', key) for key in data): layouts.append('native')
     if prefixes(data): layouts.append('paired')
+    if 't1' in data:
+        from .sharedtimeconvert import channel_keys
+        if channel_keys(data): layouts.append('shared_time')
     if 'freq' in data and any(key in data for key in ('avg', 'peak', 'pk', 'qpk')): layouts.append('receiver')
-    if 'xinc' in data and 'points' in data and any(re.fullmatch(r'Channel\d+_t1', key) for key in data):
+    if 'shared_time' not in layouts and 'xinc' in data and 'points' in data and any(re.fullmatch(r'Channel\d+_t1', key) for key in data):
         layouts.append('acquisition')
     return tuple(layouts)

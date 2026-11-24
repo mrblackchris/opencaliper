@@ -59,6 +59,7 @@ Each plot contains:
 | `hidden` | IDs hidden by visibility controls; missing means all visible |
 | `colors` | Pairs `[channel_id, color_string]` |
 | `names` | Pairs `[channel_id, local_display_name]` |
+| `styles` | Pairs `[channel_id, {width, line, marker, size, filled}]`; absent means solid 1 px without markers |
 | `axes` | Pairs `[channel_id, axis_id]`; null axis is the main Y axis |
 | `ranges` | Pairs `[axis_id, [low, high]]` in display coordinates |
 | `x` | Visible horizontal bounds in physical seconds or Hz |
