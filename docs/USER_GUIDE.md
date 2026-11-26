@@ -87,6 +87,8 @@ start_opencaliper.bat examples\example.mat
 1. Click **Open files** and select `examples/example.mat`, or drop the file into the Variable Explorer.
 2. Expand the file entry using **+**. Four channel entries appear.
 3. Drag `Channel1` into the plot, or double-click the channel to add it to the active tab's first plot.
+
+You can also drop channels from the measurement explorer onto a plot's signal list. This works in Time, Spectrum and S Parameter analyses, including calculating an FFT when dropping a time signal into Spectrum. Drag one or more rows within the list to reorder them, or copy channels between subplot lists. The first row is drawn in front of other curves on the same Y axis. The legend follows the list order. Existing channels are moved rather than duplicated, and ordering is preserved by Undo/Redo and saved workspaces. Dropping a channel into another analysis retains it in the source analysis.
 4. Add another channel to compare traces. The sidebar beside the plot lists the signals displayed there.
 5. Use **Fit both axes** if you cannot see the complete trace.
 

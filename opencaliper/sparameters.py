@@ -82,8 +82,9 @@ class SmithChart(Q.QDialog):
                 seen.add(index)
                 label = f'{window.display_name(plot, index)} ({source.reference_impedance:g} Ω)'
                 style = plot.curves[index].opts
-                self.plot.plot(source.values.real, source.values.imag, name=label,
-                               **{key: style[key] for key in ('pen', 'symbol', 'symbolSize', 'symbolPen', 'symbolBrush')})
+                curve = self.plot.plot(source.values.real, source.values.imag, name=label,
+                                       **{key: style[key] for key in ('pen', 'symbol', 'symbolSize', 'symbolPen', 'symbolBrush')})
+                curve.setZValue(plot.curves[index].zValue())
                 self.traces.append((label, source))
         self.plot.setRange(xRange=(-1.1, 1.1), yRange=(-1.1, 1.1), padding=0)
         if self.traces: self.plot.enableAutoRange()

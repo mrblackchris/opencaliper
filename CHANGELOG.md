@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Signal-list drop targets and drag reordering across Time, Spectrum and
+  S Parameter analyses; list order controls curve stacking and legend order,
+  and persists in workspaces and undo history.
+
 - Live per-signal RMS, average, min/max, peak-to-peak, standard deviation and
   sample count between cursors A and B in the cursor readout.
 

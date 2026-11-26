@@ -45,13 +45,17 @@ class SignalList(Q.QListWidget):
     files_dropped = QtCore.Signal(list)
     remove_requested = QtCore.Signal(list)
     toggle_requested = QtCore.Signal(list)
+    signals_dropped = QtCore.Signal(list, int)
 
     def __init__(self, allow_files=False, removable=False):
         super().__init__()
         self.allow_files = allow_files
         self.removable = removable
         self.setDragEnabled(True)
-        self.setAcceptDrops(allow_files)
+        self.setAcceptDrops(allow_files or removable)
+        self.setDropIndicatorShown(True)
+        self.setDragDropMode(Q.QAbstractItemView.DragDropMode.DragDrop)
+        self.setToolTip('Drop signals here to add them. Drag rows to reorder; the top signal is drawn in front.')
         self.setSelectionMode(Q.QAbstractItemView.SelectionMode.ExtendedSelection)
         self.setDefaultDropAction(QtCore.Qt.DropAction.CopyAction)
 
@@ -61,14 +65,32 @@ class SignalList(Q.QListWidget):
         return mime
 
     def dragEnterEvent(self, event):
-        if self.allow_files and event.mimeData().hasUrls(): event.acceptProposedAction()
+        if self.removable and event.mimeData().hasFormat(SIGNAL_MIME):
+            event.setDropAction(QtCore.Qt.DropAction.CopyAction)
+            event.accept()
+        elif self.allow_files and event.mimeData().hasUrls(): event.acceptProposedAction()
         else: event.ignore()
 
     def dragMoveEvent(self, event):
         self.dragEnterEvent(event)
 
     def dropEvent(self, event):
-        if self.allow_files and event.mimeData().hasUrls():
+        if self.removable and event.mimeData().hasFormat(SIGNAL_MIME):
+            try:
+                indices = json.loads(bytes(event.mimeData().data(SIGNAL_MIME)))
+                if not isinstance(indices, list) or any(type(i) is not int for i in indices):
+                    raise ValueError('Invalid signal IDs')
+            except (ValueError, TypeError):
+                event.ignore(); return
+            point = event.position().toPoint()
+            row = self.indexAt(point).row()
+            if row < 0: row = self.count()
+            elif point.y() > self.visualItemRect(self.item(row)).center().y(): row += 1
+            self.signals_dropped.emit(indices, row)
+            # Reordering is performed by the owner; never let Qt delete source rows.
+            event.setDropAction(QtCore.Qt.DropAction.CopyAction)
+            event.accept()
+        elif self.allow_files and event.mimeData().hasUrls():
             self.files_dropped.emit([u.toLocalFile() for u in event.mimeData().urls() if u.isLocalFile()])
             event.acceptProposedAction()
         else: event.ignore()
@@ -655,6 +677,7 @@ class Window(WorkspaceMixin, ToolsMixin, Q.QMainWindow):
         layout.addWidget(Q.QLabel('Checkbox / Space: show or hide · Delete: remove'))
         plot.signal_list = SignalList(removable=True)
         layout.addWidget(plot.signal_list)
+        plot.signal_list.signals_dropped.connect(lambda indices, row: self.drop_signals(plot, indices, row))
         plot.signal_list.toggle_requested.connect(lambda indices: self.toggle_signals(plot, indices))
         plot.signal_list.itemChanged.connect(lambda item: self.visibility_item_changed(plot, item))
         plot.signal_list.remove_requested.connect(lambda indices: self.remove_signals(plot, indices))
@@ -1009,6 +1032,7 @@ class Window(WorkspaceMixin, ToolsMixin, Q.QMainWindow):
         item.setFlags(item.flags() | QtCore.Qt.ItemFlag.ItemIsUserCheckable)
         item.setCheckState(QtCore.Qt.CheckState.Checked)
         plot.signal_list.addItem(item)
+        self.update_signal_order(plot)
         plot.curves[index].visibleChanged.connect(lambda: self.curve_visibility_changed(plot, index))
         self.update_axis_labels(plot)
         if len(plot.curves) == 1:
@@ -1019,6 +1043,39 @@ class Window(WorkspaceMixin, ToolsMixin, Q.QMainWindow):
             else:
                 self.move_cursor(0, float(s.time[0]), plot.workspace); self.move_cursor(1, float(s.time[-1]), plot.workspace)
         self.fit_plot(plot)
+        self.update_readout(plot.workspace)
+
+    def update_signal_order(self, plot):
+        """Keep sidebar, dictionary iteration, legend and curve stacking in one order."""
+        ids = [plot.signal_list.item(row).data(QtCore.Qt.ItemDataRole.UserRole)
+               for row in range(plot.signal_list.count())]
+        plot.curves = {index: plot.curves[index] for index in ids}
+        for row, index in enumerate(ids):
+            plot.curves[index].setZValue(len(ids)-row)
+        legend = plot.plotItem.legend
+        legend.clear()
+        for curve in plot.curves.values(): legend.addItem(curve, curve.name())
+
+    @reversible
+    def drop_signals(self, plot, indices, row):
+        """Copy external channels or move existing rows as one undoable action."""
+        original = list(plot.curves)
+        indices = list(dict.fromkeys(i for i in indices if i in self.signals))
+        for index in indices: self.add_signal(index, plot)
+        indices = [i for i in indices if i in plot.curves]
+        if not indices: return
+        row = max(0, min(row, len(original)))
+        position = sum(i not in indices for i in original[:row])
+        remaining = [i for i in plot.curves if i not in indices]
+        order = remaining[:position] + indices + remaining[position:]
+        with QtCore.QSignalBlocker(plot.signal_list):
+            items = {}
+            while plot.signal_list.count():
+                item = plot.signal_list.takeItem(0)
+                items[item.data(QtCore.Qt.ItemDataRole.UserRole)] = item
+            for index in order: plot.signal_list.addItem(items[index])
+            for index in indices: items[index].setSelected(True)
+        self.update_signal_order(plot)
         self.update_readout(plot.workspace)
 
     def visibility_item_changed(self, plot, item):
