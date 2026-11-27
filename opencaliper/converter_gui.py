@@ -33,11 +33,13 @@ class ConversionWorker(QtCore.QThread):
     """Decode/write sequentially off the UI thread; cancellation is between files."""
     result = QtCore.Signal(int, str, str)
 
-    def __init__(self, jobs, converter, overwrite, parent=None, axis_mode='per_signal', resample=False, sample_rate=None):
+    def __init__(self, jobs, converter, overwrite, parent=None, axis_mode='per_signal', resample=False, sample_rate=None,
+                 downsample=1, filter_kind='none', cutoff=None, filter_order=4, compress=True):
         super().__init__(parent)
         self.jobs, self.converter, self.overwrite = jobs, converter, overwrite
         self.axis_mode = axis_mode
         self.resample, self.sample_rate = resample, sample_rate
+        self.processing = dict(downsample=downsample, filter_kind=filter_kind, cutoff=cutoff, filter_order=filter_order, compress=compress)
 
     def run(self):
         for row, (source, target) in enumerate(self.jobs):
@@ -45,7 +47,8 @@ class ConversionWorker(QtCore.QThread):
             self.result.emit(row, 'Converting…', '')
             try:
                 path = conversion.convert_one(source, target, self.converter, self.overwrite,
-                                              axis_mode=self.axis_mode, resample=self.resample, sample_rate=self.sample_rate)
+                                              axis_mode=self.axis_mode, resample=self.resample, sample_rate=self.sample_rate,
+                                              **self.processing)
                 self.result.emit(row, 'Converted', str(path))
             except (Exception, SystemExit) as exc:
                 self.result.emit(row, f'Error: {exc}', '')
@@ -73,7 +76,9 @@ class ConverterDialog(Q.QDialog):
         self.add_button.clicked.connect(self.choose_files)
         self.remove_button.clicked.connect(self.remove_selected)
         self.clear_button.clicked.connect(self.clear_files)
-        form = Q.QFormLayout(); layout.addLayout(form)
+        options = Q.QWidget(); form = Q.QFormLayout(options)
+        scroll = Q.QScrollArea(); scroll.setWidgetResizable(True); scroll.setWidget(options)
+        scroll.setMinimumHeight(230); layout.addWidget(scroll, 2)
         self.converter = Q.QComboBox(); self.converter.setMinimumContentsLength(30)
         self.script_button = Q.QPushButton('Choose .py script…')
         self.refresh_button = Q.QPushButton('Refresh')
@@ -98,7 +103,26 @@ class ConverterDialog(Q.QDialog):
         form.addRow(self.resample_shared); form.addRow('Shared sample rate:', self.shared_rate)
         self.axis_mode.currentIndexChanged.connect(self.update_shared_options)
         self.resample_shared.toggled.connect(self.update_shared_options)
+        self.downsample = Q.QSpinBox(); self.downsample.setRange(1, 10000)
+        self.downsample.setToolTip('1 keeps all samples. N applies an anti-alias low-pass, then keeps every Nth sample. Time signals only.')
+        form.addRow('Downsample factor:', self.downsample)
+        self.filter_kind = Q.QComboBox()
+        for label, value in [('None', 'none'), ('Low-pass', 'lowpass'), ('High-pass', 'highpass')]:
+            self.filter_kind.addItem(label, value)
+        form.addRow('Filter before downsampling:', self.filter_kind)
+        self.filter_cutoff = Q.QDoubleSpinBox(); self.filter_cutoff.setDecimals(6)
+        self.filter_cutoff.setRange(.000001, 1e12); self.filter_cutoff.setValue(1000); self.filter_cutoff.setSuffix(' Hz')
+        self.filter_order = Q.QSpinBox(); self.filter_order.setRange(1, 20); self.filter_order.setValue(4)
+        form.addRow('Filter cutoff:', self.filter_cutoff); form.addRow('Butterworth order:', self.filter_order)
+        self.filter_kind.currentIndexChanged.connect(self.update_shared_options)
+        self.update_shared_options()
+        hint = Q.QLabel('Processing requires uniform real time signals. Downsampling always includes anti-alias low-pass filtering.\n'
+                        'Selected filters run first; shared-time alignment runs after downsampling. Filters have edge transients.')
+        hint.setWordWrap(True); form.addRow(hint)
         self.overwrite = Q.QCheckBox('Replace existing output files'); form.addRow(self.overwrite)
+        self.compress = Q.QCheckBox('Compress MAT output (smaller files)'); self.compress.setChecked(True)
+        self.compress.setToolTip('Disable for faster large exports and less compression-buffer memory, at the cost of larger files. No samples are discarded.')
+        form.addRow(self.compress)
         tools = Q.QHBoxLayout(); layout.addLayout(tools)
         self.folder_button = Q.QPushButton('Converter scripts folder…')
         self.template_button = Q.QPushButton('Create converter template…')
@@ -194,7 +218,7 @@ class ConverterDialog(Q.QDialog):
         self.busy = busy
         for widget in (self.table, self.add_button, self.remove_button, self.clear_button,
                        self.converter, self.script_button, self.refresh_button, self.output_folder,
-                       self.output_button, self.axis_mode, self.overwrite, self.folder_button, self.template_button, self.close_button):
+                       self.output_button, self.axis_mode, self.downsample, self.filter_kind, self.overwrite, self.compress, self.folder_button, self.template_button, self.close_button):
             widget.setEnabled(not busy)
         self.convert_button.setEnabled(not busy and bool(self.paths))
         self.cancel_button.setEnabled(busy); self.load_button.setEnabled(not busy and bool(self.outputs))
@@ -204,6 +228,9 @@ class ConverterDialog(Q.QDialog):
         shared = self.axis_mode.currentData() == 'shared_time' and not self.busy
         self.resample_shared.setEnabled(shared)
         self.shared_rate.setEnabled(shared and self.resample_shared.isChecked())
+        if hasattr(self, 'filter_kind'):
+            enabled = not self.busy and self.filter_kind.currentData() != 'none'
+            self.filter_cutoff.setEnabled(enabled); self.filter_order.setEnabled(enabled)
 
     def start(self):
         if self.busy or not self.paths: return
@@ -219,7 +246,10 @@ class ConverterDialog(Q.QDialog):
         self.worker = ConversionWorker(jobs, self.converter.currentData(), self.overwrite.isChecked(), self,
                                        axis_mode=self.axis_mode.currentData(),
                                        resample=self.axis_mode.currentData() == 'shared_time' and self.resample_shared.isChecked(),
-                                       sample_rate=self.shared_rate.value() or None)
+                                       sample_rate=self.shared_rate.value() or None,
+                                       downsample=self.downsample.value(), filter_kind=self.filter_kind.currentData(),
+                                       cutoff=self.filter_cutoff.value(), filter_order=self.filter_order.value(),
+                                       compress=self.compress.isChecked())
         self.worker.result.connect(self.update_result)
         self.worker.finished.connect(self.conversion_finished)
         self.worker.start()

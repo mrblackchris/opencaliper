@@ -6,6 +6,19 @@ import numpy as np
 from scipy.io import savemat
 
 
+MAX_SHARED_SAMPLES = 100_000_000
+
+
+def shared_sample_count(start, stop, rate):
+    """Validate a shared grid before allocating up to 100 million samples."""
+    points = (stop-start)*rate
+    if stop <= start or points < 1:
+        raise ValueError('Signals need an overlapping interval containing at least two output samples')
+    if not np.isfinite(points) or points >= MAX_SHARED_SAMPLES:
+        raise ValueError('Shared-time resampling exceeds 100 million samples; reduce the rate or downsample first')
+    return int(np.floor(points+1e-8))+1
+
+
 def resample_shared(recording, sample_rate=None):
     """Interpolate time channels onto a uniform grid over their common interval.
 
@@ -20,21 +33,23 @@ def resample_shared(recording, sample_rate=None):
         dt = np.diff(s.time)
         if not len(dt) or np.any(dt <= 0) or not np.isfinite(s.values).all():
             raise ValueError(f'{s.name}: resampling needs at least two finite samples and strictly increasing timestamps')
-        intervals.append(float(np.median(dt)))
+        intervals.append(float(np.median(dt, overwrite_input=True)))
+        del dt
     rate = 1/max(intervals) if not sample_rate else float(sample_rate)
     if not np.isfinite(rate) or rate <= 0: raise ValueError('Shared-time sample rate must be finite and positive')
     start = max(s.time[0] for s in recording.signals); stop = min(s.time[-1] for s in recording.signals)
-    points = (stop-start)*rate
-    if stop <= start or points < 1: raise ValueError('Signals need an overlapping interval containing at least two output samples')
-    if not np.isfinite(points) or points >= 10_000_000: raise ValueError('Shared-time resampling exceeds 10 million samples; reduce the rate')
-    axis = start + np.arange(int(np.floor(points+1e-8))+1)/rate
-    axis = axis[axis <= stop]
+    count = shared_sample_count(start, stop, rate)
+    # Build in place to avoid multiple full-size temporary vectors on long records.
+    axis = np.arange(count, dtype=float)
+    axis /= rate
+    axis += start
+    if axis[-1] > stop: axis = axis[:-1]
     if len(axis) < 2 or np.any(np.diff(axis) <= 0): raise ValueError('Sample rate cannot form a strictly increasing shared time grid')
     return Recording([Signal(s.name, axis, np.interp(axis, s.time, s.values), s.unit) for s in recording.signals],
                      recording.source, recording.timestamp)
 
 
-def write(recording, path, overwrite=False, axis_mode='per_signal', resample=False, sample_rate=None):
+def write(recording, path, overwrite=False, axis_mode='per_signal', resample=False, sample_rate=None, compress=True):
     """Write independent channels with safe MATLAB identifiers and original names.
 
     Extra domain/reference metadata retains S-parameter semantics. The paired
@@ -79,7 +94,7 @@ def write(recording, path, overwrite=False, axis_mode='per_signal', resample=Fal
     temp = None; reserved = False
     try:
         with tempfile.NamedTemporaryFile(dir=path.parent, suffix='.mat', delete=False) as file:
-            temp = Path(file.name); savemat(file.file, data, do_compression=True)
+            temp = Path(file.name); savemat(file.file, data, do_compression=compress)
         if not overwrite:
             # Reserve the name without overwriting another process's output.
             with path.open('xb'): pass

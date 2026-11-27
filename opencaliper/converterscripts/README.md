@@ -47,6 +47,7 @@ in its header. These conversions do not preserve every device-specific field.
 | `matpreparse.py` | Detect native, paired-vector, receiver and acquisition layouts from MAT variables |
 | `pairedconvert.py` | Decode PREFIX_u with PREFIX_t/PREFIX_f; shared vector/unit validation |
 | `csvconvert.py` | `read(path)`: detect CSV delimiters, headers/metadata and shared/paired axes |
+| `preprocessing.py` | Optional time-domain Butterworth filtering and anti-aliased downsampling before export |
 | `emccsvconvert.py` | `read(path)`: frequency/detector CSV with unit row and categorical metadata |
 | `conversion.py` | Script discovery/loading, conversion planning and paired MAT conversion |
 | `converter_template.py` | Copyable `read(path)` contributor example |

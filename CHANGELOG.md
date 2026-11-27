@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Raise the Converter shared-time resampling guard to 100 million samples and
+  reduce temporary grid allocations for long recordings such as 10 s at 200 ns.
+
+- Converter low/high-pass filtering and anti-aliased downsampling, plus optional
+  uncompressed MAT output for faster large exports; test round trips above one
+  million points in both MAT layouts.
+
 - Signal-list drop targets and drag reordering across Time, Spectrum and
   S Parameter analyses; list order controls curve stacking and legend order,
   and persists in workspaces and undo history.

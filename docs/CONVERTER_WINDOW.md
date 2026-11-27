@@ -21,6 +21,44 @@ file and cancels remaining files. Finish or cancel before closing the window or
 application. Successful files remain available to load after a partial failure
 or cancellation.
 
+## Filtering and downsampling
+
+Set **Downsample factor** to N to keep every Nth time sample, reducing the sample
+rate by N. The default 1 preserves all samples. Before reducing the samples,
+the converter always applies an eighth-order zero-phase Butterworth anti-alias
+low-pass at 80% of the new Nyquist frequency.
+
+Use **Filter before downsampling** to additionally apply a low-pass or high-pass
+Butterworth filter, specifying its cutoff in Hz and order (1–20). This filter
+runs before the anti-alias filter and sample reduction. Factor 1 also allows
+filtering without downsampling. High-pass filtering alone does not prevent
+aliasing. A high-pass cutoff must be below the output Nyquist frequency.
+
+Processing requires finite real time signals with uniform, strictly increasing
+timestamps and enough samples for forward/backward filter padding. Irregular
+time axes, short records, spectra and S-parameters produce a per-file error
+when processing is requested; they still convert normally with processing off.
+Filters have edge transients and change amplitudes near their cutoffs. Names,
+units and original input files are preserved. Shared-time alignment, if enabled,
+runs after filtering/downsampling. Its optional interpolation does not add an
+anti-alias filter: use the downsample factor for bandwidth-controlled reduction.
+
+## Large exports
+
+There is no one-million-point limit on MAT export. Regression tests export and
+reload 1,100,001 samples with both layouts and with compression on or off.
+**Compress MAT output** produces smaller files; disable it for faster large
+exports and reduced compression-buffer memory. Disabling compression does not
+discard samples. Available memory, disk space and the classic MAT format's
+per-variable size restrictions still apply. A separate 100-million-point guard
+applies only when generating a shared resampling grid, not to ordinary export.
+For example, 10 seconds at 200 ns per sample contains about 50 million samples
+and is within this limit. Each float64 axis or amplitude vector uses about
+400 MB at that size; processing and writing need additional memory. If channels
+already share an identical uniform axis, leave shared resampling unchecked to
+avoid unnecessary interpolation. Downsampling reduces the exported point count.
+Conversion runs off the GUI thread; compression can take time on long records.
+
 ## Compatible paired MAT output
 
 The **MAT layout** selector offers the original separate-axis layout described
@@ -42,7 +80,7 @@ a shared uniform time grid** and select a rate in Hz. Auto uses the slowest medi
 source rate. Conversion linearly interpolates within the channels' common time
 interval only, without extrapolating. This trims non-overlapping portions. No
 anti-alias filter is applied, and upsampling does not add measured bandwidth.
-Duplicate timestamps, nonfinite samples, no overlap, or a grid over 10 million
+Duplicate timestamps, nonfinite samples, no overlap, or a grid over 100 million
 samples produce errors. Inputs remain unchanged. Leave this option unchecked
 to preserve the original samples exactly.
 
@@ -61,8 +99,8 @@ Signal2_unit    amplitude unit
 ```
 
 Numbered MATLAB-safe field names allow original names containing spaces, dots
-or parentheses to survive in `_name` metadata. Arrays are not resampled or
-quantized. Complex values and missing amplitudes are retained. Optional
+or parentheses to survive in `_name` metadata. With processing and shared-time
+alignment disabled, arrays are not resampled or quantized. Complex values and missing amplitudes are retained. Optional
 `SignalN_domain` and `SignalN_reference_impedance` preserve S-parameter identity
 and reference resistance; ordinary `_u`/`_t` or `_u`/`_f` pairs without these
 fields also load. Acquisition time is stored as `recording_timestamp`.
